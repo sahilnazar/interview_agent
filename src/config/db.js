@@ -8,10 +8,6 @@ const pool = new pg.Pool({
   database: process.env.PGDATABASE,
 });
 
-/**
- * Execute a parameterized query against the pool.
- * Rethrows with additional context on failure.
- */
 export async function query(text, params) {
   try {
     return await pool.query(text, params);
@@ -22,10 +18,6 @@ export async function query(text, params) {
   }
 }
 
-/**
- * Verify connection, create tables, seed default settings.
- * Exits the process if the database is unreachable.
- */
 export async function initDB() {
   let client;
   try {
@@ -67,7 +59,6 @@ export async function initDB() {
     )
   `);
 
-  // Add summary column if missing (for existing databases)
   await query(`
     DO $$ BEGIN
       ALTER TABLE candidates ADD COLUMN IF NOT EXISTS summary TEXT;
