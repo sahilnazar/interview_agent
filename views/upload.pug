@@ -1,0 +1,208 @@
+extends layout
+
+block headExtra
+  style.
+    .upload-container {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .question-card {
+      text-align: center;
+      padding: 40px 32px;
+    }
+    .question-card h2 {
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+    .question-card p.question-text {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+    .ref-code {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg);
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 4px;
+      letter-spacing: .5px;
+    }
+
+    /* ── Drop zone ──────────────────────── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 60px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 20px;
+    }
+    .dropzone.drag-over {
+      border-color: var(--accent);
+      background: rgba(79,110,247,.06);
+    }
+    .dropzone p { color: var(--text-muted); font-size: 13px; margin-top: 12px; }
+    .dropzone .icon { font-size: 36px; }
+    .dropzone input { display: none; }
+
+    /* ── Progress bar ───────────────────── */
+    .progress-container {
+      margin-bottom: 20px;
+    }
+    .progress-bar {
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+      border-radius: 4px;
+      transition: width .15s;
+    }
+    .progress-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    /* ── States ──────────────────────────── */
+    .success-msg {
+      text-align: center;
+      color: var(--success);
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      padding: 40px 0;
+    }
+    .error-msg {
+      background: rgba(239,68,68,.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 6px;
+      padding: 14px 18px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .already-submitted {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-muted);
+    }
+
+block content
+  .upload-container
+    .card.question-card
+      h2 Interview Question
+      p.question-text= question
+      span.ref-code Reference: #{threadId}
+
+    if alreadySubmitted
+      .card
+        .already-submitted
+          if status === 'AwaitingVideo'
+            //- shouldn't reach here, but safety
+            p Your link is active — upload below.
+          else
+            p This submission link has already been used or has expired.
+            p Current status: 
+              span(class=`badge badge-${status.toLowerCase().replace(/\\s+/g,'')}`)= status
+    else
+      .card
+        .error-msg#errorBox
+        #uploadArea
+          .dropzone#dropzone
+            .icon ☁
+            p Drag &amp; drop your video here, or click to browse
+            input(type="file" accept="video/*" id="videoInput")
+          .progress-container#progressWrap(style="display:none")
+            .progress-bar
+              .progress-fill#progressFill
+            .progress-label#progressLabel 0 %
+
+        .success-msg#successBox(style="display:none")
+          | ✓ Submission received — we'll be in touch
+
+      script.
+        (function () {
+          const dropzone     = document.getElementById('dropzone');
+          const fileInput    = document.getElementById('videoInput');
+          const progressWrap = document.getElementById('progressWrap');
+          const progressFill = document.getElementById('progressFill');
+          const progressLabel= document.getElementById('progressLabel');
+          const errorBox     = document.getElementById('errorBox');
+          const successBox   = document.getElementById('successBox');
+          const uploadArea   = document.getElementById('uploadArea');
+          const threadId     = '#{threadId}';
+
+          function showError(msg) {
+            errorBox.textContent = msg;
+            errorBox.style.display = 'block';
+          }
+          function hideError() { errorBox.style.display = 'none'; }
+
+          // Drag & drop
+          dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+          dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+          dropzone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]);
+          });
+          dropzone.addEventListener('click', () => fileInput.click());
+          fileInput.addEventListener('change', () => { if (fileInput.files.length) upload(fileInput.files[0]); });
+
+          function upload(file) {
+            hideError();
+            if (!file.type.startsWith('video/')) {
+              return showError('Please select a video file.');
+            }
+
+            const xhr = new XMLHttpRequest();
+            const form = new FormData();
+            form.append('video', file);
+
+            uploadArea.querySelector('.dropzone').style.display = 'none';
+            progressWrap.style.display = 'block';
+
+            xhr.upload.addEventListener('progress', e => {
+              if (e.lengthComputable) {
+                const pct = Math.round(e.loaded / e.total * 100);
+                progressFill.style.width = pct + '%';
+                progressLabel.textContent = pct + ' %';
+              }
+            });
+
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                progressWrap.style.display = 'none';
+                successBox.style.display = 'block';
+              } else {
+                progressWrap.style.display = 'none';
+                uploadArea.querySelector('.dropzone').style.display = '';
+                try {
+                  const body = JSON.parse(xhr.responseText);
+                  showError(body.error || 'Upload failed');
+                } catch {
+                  showError('Upload failed (HTTP ' + xhr.status + ')');
+                }
+              }
+            });
+
+            xhr.addEventListener('error', () => {
+              progressWrap.style.display = 'none';
+              uploadArea.querySelector('.dropzone').style.display = '';
+              showError('Network error — please try again.');
+            });
+
+            xhr.open('POST', '/upload/' + encodeURIComponent(threadId));
+            xhr.send(form);
+          }
+        })();

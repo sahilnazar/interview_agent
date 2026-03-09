@@ -1,0 +1,195 @@
+extends layout
+
+block content
+  h1(style="margin-bottom:32px") Dashboard
+
+  //- ── Settings Panel ──────────────────────────────────────
+  .card
+    h2 Settings
+    form(action="/admin/settings" method="POST")
+      label Job Description
+      textarea(name="jd" rows="6")= settings.jd
+
+      .input-row
+        div
+          label Domain Filter (regex)
+          input(type="text" name="domainFilter" value=settings.domainFilter)
+        div.slider-wrap
+          label Pass Threshold
+          span.slider-val#thresholdVal= settings.passThreshold
+          input(type="range" name="passThreshold" min="0" max="100" value=settings.passThreshold id="thresholdSlider")
+
+      button.btn(type="submit") Save Settings
+
+  //- ── Trigger Screening ───────────────────────────────────
+  .card
+    h2 Trigger Screening
+    form(action="/admin/trigger" method="POST" enctype="multipart/form-data")
+      .input-row
+        div
+          label Candidate Email
+          input(type="email" name="email" required placeholder="applicant@career.com")
+        div
+          label Resume (PDF)
+          input(type="file" name="resume" accept=".pdf" required style="padding:8px")
+      button.btn(type="submit") Run Pipeline
+
+  //- ── Candidates Table ────────────────────────────────────
+  .card
+    h2 Candidates
+    div(style="overflow-x:auto")
+      table
+        thead
+          tr
+            th Email
+            th Status
+            th Resume Score
+            th English Score
+            th Skills
+            th Created
+            th Actions
+        tbody#candidates-body
+          each c in candidates
+            - const parsed = c.summary ? JSON.parse(c.summary) : null
+            tr
+              td= c.email
+              td
+                - const s = (c.status || '').toLowerCase().replace(/\s+/g,'')
+                span(class=`badge badge-${s}`)= c.status
+              td.score= c.resume_score != null ? c.resume_score.toFixed(1) + '%' : '—'
+              td.score= c.english_score != null ? c.english_score.toFixed(1) : '—'
+              td
+                if c.skills && c.skills.length
+                  each sk in c.skills
+                    span.skill-chip= sk
+                else
+                  | —
+              td= c.created_at ? new Date(c.created_at).toLocaleString() : ''
+              td.actions-cell
+                if parsed
+                  button.summary-toggle(type="button" onclick=`toggleSummary('${c.thread_id}')`) ▶ Summary
+                if c.status === 'Screened'
+                  form(action=`/admin/invite/${c.thread_id}` method="POST" style="display:inline")
+                    button.btn-sm.btn-invite(type="submit") ✉ Invite
+                  form(action=`/admin/reject/${c.thread_id}` method="POST" style="display:inline")
+                    button.btn-sm.btn-reject(type="submit") ✗ Reject
+                form(action=`/admin/delete/${c.thread_id}` method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')")
+                  button.btn-sm.btn-delete(type="submit") ✕ Delete
+            if parsed
+              tr.summary-row(id=`summary-${c.thread_id}` style="display:none")
+                td(colspan="7")
+                  .summary-box
+                    p= parsed.summary
+                    h4 ✓ Matching
+                    div
+                      each m in (parsed.matching || [])
+                        span.match-chip= m
+                    h4(style="margin-top:10px") ✗ Missing
+                    div
+                      each m in (parsed.missing || [])
+                        span.miss-chip= m
+
+  script.
+    // Live-polling — refresh candidate table every 5 s
+    const tbody = document.getElementById('candidates-body');
+
+    function badgeClass(status) {
+      return 'badge badge-' + (status || '').toLowerCase().replace(/\s+/g, '');
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function toggleSummary(tid) {
+      const row = document.getElementById('summary-' + tid);
+      if (!row) return;
+      const visible = row.style.display !== 'none';
+      row.style.display = visible ? 'none' : 'table-row';
+      // Update button text
+      const btn = row.previousElementSibling.querySelector('.summary-toggle');
+      if (btn) btn.textContent = visible ? '▶ Summary' : '▼ Summary';
+    }
+
+    function renderRow(c) {
+      const skills = (c.skills && c.skills.length)
+        ? c.skills.map(s => `<span class="skill-chip">${esc(s)}</span>`).join('')
+        : '—';
+      const score = c.resume_score != null ? Number(c.resume_score).toFixed(1) + '%' : '—';
+
+      let parsed = null;
+      try { parsed = c.summary ? JSON.parse(c.summary) : null; } catch {}
+
+      const summaryBtn = parsed
+        ? `<button class="summary-toggle" type="button" onclick="toggleSummary('${c.thread_id}')">▶ Summary</button>`
+        : '';
+
+      const actions = summaryBtn
+        + (c.status === 'Screened'
+        ? `<form action="/admin/invite/${c.thread_id}" method="POST" style="display:inline">
+             <button class="btn-sm btn-invite" type="submit">✉ Invite</button>
+           </form>
+           <form action="/admin/reject/${c.thread_id}" method="POST" style="display:inline">
+             <button class="btn-sm btn-reject" type="submit">✗ Reject</button>
+           </form>`
+        : '')
+        + `<form action="/admin/delete/${c.thread_id}" method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')">
+             <button class="btn-sm btn-delete" type="submit">✕ Delete</button>
+           </form>`;
+
+      let summaryRow = '';
+      if (parsed) {
+        const matching = (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('');
+        const missing = (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('');
+        summaryRow = `<tr class="summary-row" id="summary-${c.thread_id}" style="display:none">
+          <td colspan="7"><div class="summary-box">
+            <p>${esc(parsed.summary || '')}</p>
+            <h4>✓ Matching</h4><div>${matching || '—'}</div>
+            <h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>
+          </div></td></tr>`;
+      }
+
+      return `<tr>
+        <td>${esc(c.email)}</td>
+        <td><span class="${badgeClass(c.status)}">${esc(c.status)}</span></td>
+        <td class="score">${score}</td>
+        <td class="score">${c.english_score != null ? Number(c.english_score).toFixed(1) : '—'}</td>
+        <td>${skills}</td>
+        <td>${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</td>
+        <td class="actions-cell">${actions}</td>
+      </tr>${summaryRow}`;
+    }
+
+    async function poll() {
+      try {
+        const res = await fetch('/api/candidates');
+        if (!res.ok) return;
+        const data = await res.json();
+        // Remember which summaries are currently open
+        const openSummaries = new Set();
+        tbody.querySelectorAll('.summary-row').forEach(row => {
+          if (row.style.display !== 'none') openSummaries.add(row.id);
+        });
+        tbody.innerHTML = data.map(renderRow).join('');
+        // Restore open summaries
+        openSummaries.forEach(id => {
+          const row = document.getElementById(id);
+          if (row) {
+            row.style.display = 'table-row';
+            const btn = row.previousElementSibling.querySelector('.summary-toggle');
+            if (btn) btn.textContent = '▼ Summary';
+          }
+        });
+      } catch { /* ignore transient errors */ }
+    }
+
+    setInterval(poll, 5000);
+
+    // Threshold slider live value
+    const slider = document.getElementById('thresholdSlider');
+    const valEl  = document.getElementById('thresholdVal');
+    if (slider && valEl) {
+      slider.addEventListener('input', () => { valEl.textContent = slider.value; });
+    }
