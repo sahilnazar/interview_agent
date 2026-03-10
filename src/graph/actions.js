@@ -7,12 +7,12 @@ import { parseJSON, callWithRetry, getGeminiModel } from "./helpers.js";
 import { sendInvitationEmail, sendRejectionEmail } from "../services/email.js";
 
 /**
- * Send an invitation email & update status to AwaitingVideo.
+ * Re-select a rejected candidate — send invitation email & update status to AwaitingVideo.
  */
-export async function inviteCandidateById(threadId) {
+export async function reselectCandidateById(threadId) {
   const row = await query("SELECT email, status FROM candidates WHERE thread_id = $1", [threadId]);
   if (!row.rows.length) throw new Error("Candidate not found");
-  if (row.rows[0].status !== "Screened") throw new Error("Candidate is not in Screened status");
+  if (row.rows[0].status !== "Rejected") throw new Error("Candidate is not in Rejected status");
   await sendInvitationEmail(row.rows[0].email, threadId);
   await query("UPDATE candidates SET status = 'AwaitingVideo' WHERE thread_id = $1", [threadId]);
 }
@@ -23,9 +23,8 @@ export async function inviteCandidateById(threadId) {
 export async function rejectCandidateById(threadId) {
   const row = await query("SELECT email, status FROM candidates WHERE thread_id = $1", [threadId]);
   if (!row.rows.length) throw new Error("Candidate not found");
-  if (row.rows[0].status !== "Screened") throw new Error("Candidate is not in Screened status");
   try { await sendRejectionEmail(row.rows[0].email); } catch (e) { console.error("Rejection email failed:", e.message); }
-  await query("UPDATE candidates SET status = 'Rejected' WHERE thread_id = $1", [threadId]);
+  await query("UPDATE candidates SET status = 'Rejected', rejection_sent = TRUE WHERE thread_id = $1", [threadId]);
 }
 
 /**

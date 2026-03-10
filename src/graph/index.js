@@ -2,7 +2,7 @@ import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { MemorySaver } from "@langchain/langgraph";
 
 import { query } from "../config/db.js";
-import { checkDomainAndDuplicate, analyzeResume, markScreened, rejectCandidate } from "./nodes.js";
+import { checkDomainAndDuplicate, analyzeResume, sendInvite, rejectCandidate } from "./nodes.js";
 
 // ---------------------------------------------------------------------------
 // State Annotation
@@ -18,6 +18,7 @@ const InterviewState = Annotation.Root({
   status:         Annotation({ reducer: (_, v) => v, default: () => "Screening" }),
   messages:       Annotation({ reducer: (a, b) => [...a, ...b], default: () => [] }),
   threadId:       Annotation({ reducer: (_, v) => v, default: () => "" }),
+  interviewId:    Annotation({ reducer: (_, v) => v, default: () => "" }),
 });
 
 // ---------------------------------------------------------------------------
@@ -30,9 +31,9 @@ function domainGate(state) {
 
 async function thresholdGate(state) {
   if (state.status === "Error") return END;
-  const row = await query("SELECT value FROM settings WHERE key = 'passThreshold'");
-  const threshold = parseFloat(row.rows[0].value);
-  return state.resumeScore >= threshold ? "mark_screened" : "reject_candidate";
+  const row = await query("SELECT pass_threshold FROM interviews WHERE id = $1", [state.interviewId]);
+  const threshold = row.rows.length ? parseFloat(row.rows[0].pass_threshold) : 60;
+  return state.resumeScore >= threshold ? "send_invite" : "reject_candidate";
 }
 
 // ---------------------------------------------------------------------------
@@ -42,12 +43,12 @@ async function thresholdGate(state) {
 const workflow = new StateGraph(InterviewState)
   .addNode("check_domain_and_duplicate", checkDomainAndDuplicate)
   .addNode("analyze_resume", analyzeResume)
-  .addNode("mark_screened", markScreened)
+  .addNode("send_invite", sendInvite)
   .addNode("reject_candidate", rejectCandidate)
   .addEdge(START, "check_domain_and_duplicate")
   .addConditionalEdges("check_domain_and_duplicate", domainGate)
   .addConditionalEdges("analyze_resume", thresholdGate)
-  .addEdge("mark_screened", END)
+  .addEdge("send_invite", END)
   .addEdge("reject_candidate", END);
 
 // ---------------------------------------------------------------------------

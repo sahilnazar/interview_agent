@@ -7,11 +7,11 @@ import pdfParse from "pdf-parse";
 const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
 /**
- * Start watching a directory for new PDF CVs.
- * Extracts the candidate email from the filename or PDF content,
- * invokes the graph, then moves the file to processed/.
+ * Start watching cvs/<interview_id>/ subfolders for new PDF CVs.
+ * Folder structure: cvs/<uuid>/<email>.pdf
+ * The interview ID is extracted from the parent folder name.
  *
- * @param {string} cvsDir       – folder to watch
+ * @param {string} cvsDir       – root cvs/ folder
  * @param {string} processedDir – folder to move processed files
  * @param {object} compiledGraph – compiled LangGraph instance
  */
@@ -30,6 +30,16 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
       await new Promise((r) => setTimeout(r, 1000));
 
       if (!fs.existsSync(filePath)) return;
+
+      // Extract interview ID from parent folder name
+      const parentDir = path.basename(path.dirname(filePath));
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!UUID_REGEX.test(parentDir)) {
+        console.warn(`CV watcher: ${basename} is not inside an interview folder — skipped (place in cvs/<interview_id>/)`);
+        return;
+      }
+      const interviewId = parentDir;
+
       const buf = fs.readFileSync(filePath);
       if (buf.length === 0) { console.warn(`CV watcher: ${basename} is empty — skipped`); return; }
 
@@ -54,10 +64,10 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
       const threadId = uuidv4();
       const config = { configurable: { thread_id: threadId } };
 
-      console.log(`CV watcher: Processing ${basename} → ${candidateEmail} (${threadId})`);
+      console.log(`CV watcher: Processing ${basename} → ${candidateEmail} (interview: ${interviewId})`);
 
       compiledGraph
-        .invoke({ candidateEmail, resumeBuffer: buf, threadId }, config)
+        .invoke({ candidateEmail, resumeBuffer: buf, threadId, interviewId }, config)
         .then(() => console.log(`CV watcher: Graph completed for ${candidateEmail} (${threadId})`))
         .catch((err) => console.error(`CV watcher: Graph error for ${candidateEmail}:`, err.message));
 
@@ -74,7 +84,7 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
   chokidar
     .watch(cvsDir, {
       ignored: [processedDir, /(^|[\/\\])\..*/],
-      depth: 0,
+      depth: 1,
       ignoreInitial: false,
     })
     .on("add", (filePath) => {
@@ -83,5 +93,5 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
       }
     });
 
-  console.log(`CV watcher: Watching ${cvsDir} for new PDFs`);
+  console.log(`CV watcher: Watching ${cvsDir} for new PDFs (place in cvs/<interview_id>/ subfolders)`);
 }

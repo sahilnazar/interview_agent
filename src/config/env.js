@@ -6,6 +6,9 @@ export function validateEnv() {
     console.error(`Missing required environment variables: ${missing.join(", ")}`);
     process.exit(1);
   }
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY not set — OpenAI embeddings unavailable (Ollama can be used instead)");
+  }
   if (!process.env.GOOGLE_API_KEY) {
     console.warn("GOOGLE_API_KEY not set — video analysis (Gemini) will be unavailable");
   }

@@ -1,0 +1,295 @@
+extends layout
+
+block content
+  .page-header
+    a.back-link(href="/admin") ← All Interviews
+    h1= interview.title
+
+  //- ── Settings Panel ──────────────────────────────────────
+  .card
+    h2 Interview Settings
+    form(action=`/admin/interviews/${interview.id}/settings` method="POST")
+      label Job Description
+      textarea(name="jd" rows="6")= interview.jd
+
+      .input-row
+        div
+          label Domain Filter (regex)
+          input(type="text" name="domainFilter" value=interview.domain_filter)
+        div.slider-wrap
+          label Pass Threshold
+          span.slider-val#thresholdVal= interview.pass_threshold
+          input(type="range" name="passThreshold" min="0" max="100" value=interview.pass_threshold id="thresholdSlider")
+
+      button.btn(type="submit") Save Settings
+
+    //- Embed progress panel (hidden by default)
+    #embed-panel(style="display:none;margin-top:16px")
+      .embed-status
+        span#embed-spinner.spinner(style="display:none")
+        span#embed-label(style="font-size:13px;color:var(--text-muted)")
+      pre#embed-log(style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 16px;font-size:12px;color:var(--text-muted);max-height:200px;overflow-y:auto;margin-top:10px;white-space:pre-wrap")
+
+  //- ── Trigger Screening ───────────────────────────────────
+  .card
+    h2 Trigger Screening
+    form(action=`/admin/interviews/${interview.id}/trigger` method="POST" enctype="multipart/form-data")
+      .input-row
+        div
+          label Candidate Email
+          input(type="email" name="email" required placeholder="applicant@example.com")
+        div
+          label Resume (PDF)
+          input(type="file" name="resume" accept=".pdf" required style="padding:8px")
+      button.btn(type="submit") Run Pipeline
+
+  //- ── Candidates Table ────────────────────────────────────
+  .card
+    .card-header-row
+      h2 Candidates
+      - const rejectedUnsent = candidates.filter(c => c.status === 'Rejected' && !c.rejection_sent).length
+      if rejectedUnsent > 0
+        form(action=`/admin/interviews/${interview.id}/bulk-reject-email` method="POST" style="display:inline" onsubmit=`return confirm('Send rejection emails to ${rejectedUnsent} candidate(s)?')`)
+          button.btn.btn-bulk-reject(type="submit") ✉ Send Rejection Emails (#{rejectedUnsent})
+
+    div(style="overflow-x:auto")
+      table
+        thead
+          tr
+            th Email
+            th Status
+            th Resume Score
+            th English Score
+            th Skills
+            th Created
+            th Actions
+        tbody#candidates-body
+          each c in candidates
+            - const parsed = c.summary ? JSON.parse(c.summary) : null
+            tr
+              td= c.email
+              td
+                - const s = (c.status || '').toLowerCase().replace(/\s+/g,'')
+                span(class=`badge badge-${s}`)= c.status
+                if c.status === 'Rejected' && c.rejection_sent
+                  span.badge-sent(title="Rejection email sent") ✉
+              td.score= c.resume_score != null ? c.resume_score.toFixed(1) + '%' : '—'
+              td.score= c.english_score != null ? c.english_score.toFixed(1) : '—'
+              td
+                if c.skills && c.skills.length
+                  each sk in c.skills
+                    span.skill-chip= sk
+                else
+                  | —
+              td= c.created_at ? new Date(c.created_at).toLocaleString() : ''
+              td.actions-cell
+                if parsed
+                  button.summary-toggle(type="button" onclick=`toggleSummary('${c.thread_id}')`) ▶ Summary
+                if c.status === 'Rejected'
+                  form(action=`/admin/interviews/${interview.id}/reselect/${c.thread_id}` method="POST" style="display:inline")
+                    button.btn-sm.btn-invite(type="submit") ↩ Re-select
+                if c.status === 'Screened' || c.status === 'AwaitingVideo' || c.status === 'Done'
+                  form(action=`/admin/interviews/${interview.id}/reject/${c.thread_id}` method="POST" style="display:inline")
+                    button.btn-sm.btn-reject(type="submit") ✗ Reject
+                form(action=`/admin/interviews/${interview.id}/delete/${c.thread_id}` method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')")
+                  button.btn-sm.btn-delete(type="submit") ✕ Delete
+            if parsed
+              tr.summary-row(id=`summary-${c.thread_id}` style="display:none")
+                td(colspan="7")
+                  .summary-box
+                    p= parsed.summary
+                    h4 ✓ Matching
+                    div
+                      each m in (parsed.matching || [])
+                        span.match-chip= m
+                    h4(style="margin-top:10px") ✗ Missing
+                    div
+                      each m in (parsed.missing || [])
+                        span.miss-chip= m
+
+  //- ── CV Watcher Info ─────────────────────────────────────
+  .card
+    h2 CV Folder Watcher
+    p(style="color:var(--text-muted);font-size:13px")
+      | Drop PDF resumes into #[code cvs/#{interview.id}/] to auto-process them.
+      br
+      | Filename format: #[code email@domain.com.pdf]
+
+  script.
+    const INTERVIEW_ID = '#{interview.id}';
+    const tbody = document.getElementById('candidates-body');
+
+    function badgeClass(status) {
+      return 'badge badge-' + (status || '').toLowerCase().replace(/\s+/g, '');
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function toggleSummary(tid) {
+      const row = document.getElementById('summary-' + tid);
+      if (!row) return;
+      const visible = row.style.display !== 'none';
+      row.style.display = visible ? 'none' : 'table-row';
+      const btn = row.previousElementSibling.querySelector('.summary-toggle');
+      if (btn) btn.textContent = visible ? '▶ Summary' : '▼ Summary';
+    }
+
+    function renderRow(c) {
+      const skills = (c.skills && c.skills.length)
+        ? c.skills.map(s => `<span class="skill-chip">${esc(s)}</span>`).join('')
+        : '—';
+      const score = c.resume_score != null ? Number(c.resume_score).toFixed(1) + '%' : '—';
+
+      let parsed = null;
+      try { parsed = c.summary ? JSON.parse(c.summary) : null; } catch {}
+
+      const summaryBtn = parsed
+        ? `<button class="summary-toggle" type="button" onclick="toggleSummary('${c.thread_id}')">▶ Summary</button>`
+        : '';
+
+      let actions = summaryBtn;
+
+      if (c.status === 'Rejected') {
+        actions += `<form action="/admin/interviews/${INTERVIEW_ID}/reselect/${c.thread_id}" method="POST" style="display:inline">
+          <button class="btn-sm btn-invite" type="submit">↩ Re-select</button></form>`;
+      }
+
+      if (['Screened', 'AwaitingVideo', 'Done'].includes(c.status)) {
+        actions += `<form action="/admin/interviews/${INTERVIEW_ID}/reject/${c.thread_id}" method="POST" style="display:inline">
+          <button class="btn-sm btn-reject" type="submit">✗ Reject</button></form>`;
+      }
+
+      actions += `<form action="/admin/interviews/${INTERVIEW_ID}/delete/${c.thread_id}" method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')">
+        <button class="btn-sm btn-delete" type="submit">✕ Delete</button></form>`;
+
+      const sentBadge = (c.status === 'Rejected' && c.rejection_sent)
+        ? '<span class="badge-sent" title="Rejection email sent">✉</span>' : '';
+
+      let summaryRow = '';
+      if (parsed) {
+        const matching = (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('');
+        const missing = (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('');
+        summaryRow = `<tr class="summary-row" id="summary-${c.thread_id}" style="display:none">
+          <td colspan="7"><div class="summary-box">
+            <p>${esc(parsed.summary || '')}</p>
+            <h4>✓ Matching</h4><div>${matching || '—'}</div>
+            <h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>
+          </div></td></tr>`;
+      }
+
+      return `<tr>
+        <td>${esc(c.email)}</td>
+        <td><span class="${badgeClass(c.status)}">${esc(c.status)}</span>${sentBadge}</td>
+        <td class="score">${score}</td>
+        <td class="score">${c.english_score != null ? Number(c.english_score).toFixed(1) : '—'}</td>
+        <td>${skills}</td>
+        <td>${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</td>
+        <td class="actions-cell">${actions}</td>
+      </tr>${summaryRow}`;
+    }
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/interviews/${INTERVIEW_ID}/candidates`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const openSummaries = new Set();
+        tbody.querySelectorAll('.summary-row').forEach(row => {
+          if (row.style.display !== 'none') openSummaries.add(row.id);
+        });
+        tbody.innerHTML = data.map(renderRow).join('');
+        openSummaries.forEach(id => {
+          const row = document.getElementById(id);
+          if (row) {
+            row.style.display = 'table-row';
+            const btn = row.previousElementSibling.querySelector('.summary-toggle');
+            if (btn) btn.textContent = '▼ Summary';
+          }
+        });
+      } catch { /* ignore */ }
+    }
+
+    setInterval(poll, 5000);
+
+    // ── Embed progress tracking ──────────────────────────
+    const settingsForm = document.querySelector('form[action$="/settings"]');
+    const embedPanel = document.getElementById('embed-panel');
+    const embedSpinner = document.getElementById('embed-spinner');
+    const embedLabel = document.getElementById('embed-label');
+    const embedLog = document.getElementById('embed-log');
+    let embedPollTimer = null;
+
+    settingsForm.addEventListener('submit', function() {
+      // Show the panel after form submits
+      setTimeout(() => {
+        embedPanel.style.display = 'block';
+        embedSpinner.style.display = 'inline-block';
+        embedLabel.textContent = ' Embedding JD...';
+        embedLog.textContent = 'Starting...\n';
+        startEmbedPoll();
+      }, 500);
+    });
+
+    function startEmbedPoll() {
+      if (embedPollTimer) clearInterval(embedPollTimer);
+      embedPollTimer = setInterval(pollEmbedStatus, 1000);
+    }
+
+    async function pollEmbedStatus() {
+      try {
+        const res = await fetch(`/admin/interviews/${INTERVIEW_ID}/embed-status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        embedLog.textContent = data.logs.join('\n');
+        embedLog.scrollTop = embedLog.scrollHeight;
+
+        if (data.status === 'done') {
+          embedSpinner.style.display = 'none';
+          embedLabel.textContent = '✔ Embedding complete';
+          embedLabel.style.color = 'var(--success)';
+          clearInterval(embedPollTimer);
+        } else if (data.status === 'error') {
+          embedSpinner.style.display = 'none';
+          embedLabel.textContent = '✖ Embedding failed';
+          embedLabel.style.color = 'var(--danger)';
+          clearInterval(embedPollTimer);
+        } else {
+          embedSpinner.style.display = 'inline-block';
+          embedLabel.textContent = ' Embedding JD...';
+          embedLabel.style.color = 'var(--text-muted)';
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Check on page load in case an embed is in progress
+    (async function() {
+      try {
+        const res = await fetch(`/admin/interviews/${INTERVIEW_ID}/embed-status`);
+        const data = await res.json();
+        if (data.status === 'running' || data.status === 'done' || data.status === 'error') {
+          embedPanel.style.display = 'block';
+          embedLog.textContent = data.logs.join('\n');
+          if (data.status === 'running') {
+            embedSpinner.style.display = 'inline-block';
+            embedLabel.textContent = ' Embedding JD...';
+            startEmbedPoll();
+          } else if (data.status === 'done') {
+            embedLabel.textContent = '✔ Embedding complete';
+            embedLabel.style.color = 'var(--success)';
+          } else if (data.status === 'error') {
+            embedLabel.textContent = '✖ Embedding failed';
+            embedLabel.style.color = 'var(--danger)';
+          }
+        }
+      } catch {}
+    })();
+
+    const slider = document.getElementById('thresholdSlider');
+    const valEl  = document.getElementById('thresholdVal');
+    if (slider && valEl) {
+      slider.addEventListener('input', () => { valEl.textContent = slider.value; });
+    }
