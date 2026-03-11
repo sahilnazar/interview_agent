@@ -382,5 +382,7 @@ html(lang="en")
       .logo Interview Assistant
       nav
         a(href="/admin") Interviews
+      form(action="/login/logout" method="POST" style="margin-top:auto")
+        button.btn-sm(type="submit" style="background:transparent;color:var(--text-muted);border:1px solid var(--border);width:100%") Logout
     main.content
       block content

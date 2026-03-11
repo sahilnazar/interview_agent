@@ -1,4 +1,5 @@
 import pg from "pg";
+import bcrypt from "bcrypt";
 
 const pool = new pg.Pool({
   host: process.env.PGHOST,
@@ -133,6 +134,38 @@ export async function initDB() {
   await query(`
     INSERT INTO settings (key, value) VALUES ('ollama_base_url', 'http://localhost:11434')
     ON CONFLICT (key) DO NOTHING
+  `);
+
+  // Admins table
+  await query(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id            SERIAL PRIMARY KEY,
+      username      TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Seed default admin (admin / admin123) if no admins exist
+  const adminCount = await query("SELECT COUNT(*) FROM admins");
+  if (parseInt(adminCount.rows[0].count) === 0) {
+    const hash = await bcrypt.hash("admin123", 10);
+    await query("INSERT INTO admins (username, password_hash) VALUES ('admin', $1)", [hash]);
+    console.log("Seeded default admin — username: admin, password: admin123");
+  }
+
+  // Candidate auth columns (login_token + password_hash)
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS login_token TEXT UNIQUE;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS password_hash TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
   `);
 
   // JD chunks for RAG — scoped per interview (requires pgvector)

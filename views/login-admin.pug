@@ -1,0 +1,18 @@
+extends layout-auth
+
+block content
+  .auth-container
+    .auth-card
+      .auth-logo Interview Assistant
+      h2 Admin Login
+      if error
+        .auth-error= error
+      form(action="/login/admin" method="POST")
+        label Username
+        input(type="text" name="username" required autofocus placeholder="admin")
+        label Password
+        input(type="password" name="password" required placeholder="••••••••")
+        button.btn(type="submit" style="width:100%") Sign In
+      p.auth-switch
+        | Are you a candidate? 
+        a(href="/login/candidate") Login here

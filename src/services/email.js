@@ -24,7 +24,8 @@ export async function sendEmail(to, subject, html) {
   await getTransporter().sendMail({ from: process.env.GMAIL_USER, to, subject, html });
 }
 
-export async function sendInvitationEmail(email, threadId) {
+export async function sendInvitationEmail(email, threadId, loginToken, password) {
+  const loginUrl = `http://localhost:${PORT}/login/candidate`;
   const uploadUrl = `http://localhost:${PORT}/upload/${encodeURIComponent(threadId)}`;
   await sendEmail(
     email,
@@ -32,14 +33,21 @@ export async function sendInvitationEmail(email, threadId) {
     `<div style="font-family:sans-serif;max-width:600px">
       <h2>Congratulations!</h2>
       <p>Your resume has been shortlisted. Please complete the next step of our process.</p>
-      <h3>Interview Question</h3>
+      <h3>Your Login Credentials</h3>
+      <table style="border-collapse:collapse;margin-bottom:20px">
+        <tr><td style="padding:6px 16px 6px 0;color:#888">Email:</td><td style="padding:6px 0"><strong>${email}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#888">Token:</td><td style="padding:6px 0"><strong>${loginToken}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#888">Password:</td><td style="padding:6px 0"><strong>${password}</strong></td></tr>
+      </table>
+      <p><a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#4f6ef7;color:#fff;border-radius:6px;text-decoration:none">
+        Login to Your Dashboard
+      </a></p>
+      <h3 style="margin-top:24px">Interview Question</h3>
       <p>Record a <strong>2–3 minute video</strong> introducing yourself, discussing your
       relevant experience, and explaining why you're interested in this position.
       Focus on demonstrating your technical knowledge and communication skills.</p>
-      <p><a href="${uploadUrl}" style="display:inline-block;padding:12px 24px;background:#4f6ef7;color:#fff;border-radius:6px;text-decoration:none">
-        Submit Your Video
-      </a></p>
-      <p style="color:#888;font-size:12px">Reference: ${threadId}</p>
+      <p style="margin-top:16px"><a href="${uploadUrl}" style="color:#4f6ef7">Or upload directly here</a></p>
+      <p style="color:#888;font-size:12px;margin-top:24px">Reference: ${threadId}</p>
     </div>`
   );
 }

@@ -1,0 +1,60 @@
+extends layout-candidate
+
+block content
+  .page-header
+    h1= candidate.interview_title
+    form(action="/login/logout" method="POST" style="margin-left:auto")
+      button.btn-sm.btn-delete(type="submit") Logout
+
+  //- ── Status Card ─────────────────────────────────────────
+  .card
+    h2 Your Application Status
+    .status-row
+      .status-item
+        span.status-label Status
+        span(class=`badge badge-${(candidate.status || '').toLowerCase().replace(/\\s+/g,'')}`)= candidate.status
+      if candidate.resume_score != null
+        .status-item
+          span.status-label Resume Score
+          span.score= candidate.resume_score.toFixed(1) + '%'
+
+  //- ── Summary ─────────────────────────────────────────────
+  if summary
+    .card
+      h2 Resume Feedback
+      p= summary.summary
+      if summary.matching && summary.matching.length
+        h4(style="margin-top:16px") Matching Skills
+        div
+          each m in summary.matching
+            span.match-chip= m
+      if summary.missing && summary.missing.length
+        h4(style="margin-top:12px") Areas to Improve
+        div
+          each m in summary.missing
+            span.miss-chip= m
+
+  //- ── Video Upload ────────────────────────────────────────
+  if candidate.status === 'AwaitingVideo'
+    .card
+      h2 Video Interview
+      p(style="color:var(--text-muted);font-size:13px;margin-bottom:16px")= question
+      form(action="/candidate/upload-video" method="POST" enctype="multipart/form-data")
+        .upload-area
+          label(style="text-transform:none;font-size:13px;color:var(--text)") Select your video (MP4, WebM, or QuickTime — max 200MB)
+          input(type="file" name="video" accept="video/mp4,video/webm,video/quicktime" required style="padding:8px;margin-top:8px")
+        button.btn(type="submit" style="margin-top:16px") Submit Video
+
+  if candidate.status === 'VideoReceived'
+    .card
+      h2 Video Interview
+      p(style="color:var(--success)") Your video has been received and is being analyzed. Check back for your results.
+
+  if candidate.status === 'Done'
+    .card
+      h2 Video Interview
+      p(style="color:var(--success)") Your video has been reviewed. Thank you for completing the interview process!
+      if candidate.english_score != null
+        p
+          span.status-label Communication Score: 
+          span.score= candidate.english_score.toFixed(1)

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { HumanMessage } from "@langchain/core/messages";
 import pdfParse from "pdf-parse";
+import bcrypt from "bcrypt";
 
 import { query } from "../config/db.js";
 import { toBuffer, parseJSON, callWithRetry, getGroqModel } from "./helpers.js";
@@ -156,8 +157,18 @@ export async function analyzeResume(state) {
 export async function sendInvite(state) {
   const { threadId, candidateEmail } = state;
 
+  // Generate unique login credentials
+  const loginToken = crypto.randomBytes(4).toString("hex"); // 8-char hex
+  const plainPassword = crypto.randomBytes(6).toString("base64url"); // ~8 chars
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
+
+  await query(
+    "UPDATE candidates SET login_token = $1, password_hash = $2 WHERE thread_id = $3",
+    [loginToken, passwordHash, threadId]
+  );
+
   try {
-    await sendInvitationEmail(candidateEmail, threadId);
+    await sendInvitationEmail(candidateEmail, threadId, loginToken, plainPassword);
   } catch (err) {
     console.error("Failed to send invitation email:", err.message);
   }
