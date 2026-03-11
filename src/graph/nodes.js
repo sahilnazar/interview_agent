@@ -15,7 +15,7 @@ import { retrieveRelevantChunks } from "../services/embeddings.js";
 // ---------------------------------------------------------------------------
 
 export async function checkDomainAndDuplicate(state) {
-  const { candidateEmail, resumeBuffer, threadId, interviewId } = state;
+  const { candidateEmail, resumeBuffer, threadId, interviewId, assignmentMethod, matchConfidence } = state;
 
   const buf = toBuffer(resumeBuffer);
   const hash = crypto.createHash("sha256").update(buf).digest("hex");
@@ -31,8 +31,9 @@ export async function checkDomainAndDuplicate(state) {
   }
 
   await query(
-    "INSERT INTO candidates (thread_id, interview_id, email, resume_hash, status, created_at) VALUES ($1, $2, $3, $4, 'Screening', NOW())",
-    [threadId, interviewId, candidateEmail, hash]
+    `INSERT INTO candidates (thread_id, interview_id, email, resume_hash, status, assignment_method, match_confidence, created_at)
+     VALUES ($1, $2, $3, $4, 'Screening', $5, $6, NOW())`,
+    [threadId, interviewId, candidateEmail, hash, assignmentMethod || "manual", matchConfidence]
   );
 
   return { resumeHash: hash, status: "Screening" };

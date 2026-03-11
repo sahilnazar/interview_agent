@@ -57,6 +57,8 @@ const splitter = new RecursiveCharacterTextSplitter({
 
 // ─── Public API ──────────────────────────────────────────────────────────
 
+export { embedText };
+
 // In-memory embed job status per interview
 const embedJobs = new Map();
 

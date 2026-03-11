@@ -5,6 +5,7 @@ import chokidar from "chokidar";
 import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
 import { extractPdfText } from "./pdf-extract.js";
+import { matchResumeToInterview } from "./interview-matcher.js";
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
@@ -20,6 +21,8 @@ const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
   fs.mkdirSync(cvsDir, { recursive: true });
   fs.mkdirSync(processedDir, { recursive: true });
+  // Ensure the auto folder exists
+  fs.mkdirSync(path.join(cvsDir, "auto"), { recursive: true });
 
   const processing = new Set();
   const queue = [];
@@ -51,18 +54,20 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
 
       if (!fs.existsSync(filePath)) return;
 
-      // Extract interview ID from parent folder name
+      // Determine assignment mode from parent folder
       const parentDir = path.basename(path.dirname(filePath));
       const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!UUID_REGEX.test(parentDir)) {
-        console.warn(`CV watcher: ${basename} is not inside an interview folder — skipped (place in cvs/<interview_id>/)`);
+      const isAutoFolder = parentDir.toLowerCase() === "auto";
+
+      if (!isAutoFolder && !UUID_REGEX.test(parentDir)) {
+        console.warn(`CV watcher: ${basename} is not inside an interview or auto folder — skipped`);
         return;
       }
-      const interviewId = parentDir;
 
       const buf = fs.readFileSync(filePath);
       if (buf.length === 0) { console.warn(`CV watcher: ${basename} is empty — skipped`); return; }
 
+      // Extract text for email detection (and auto-matching)
       let resumeText = "";
       const ext = path.extname(filePath).toLowerCase();
       try {
@@ -90,13 +95,35 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
         return;
       }
 
+      // Resolve interview ID
+      let interviewId;
+      let assignmentMethod = "manual";
+      let matchConfidence = null;
+
+      if (isAutoFolder) {
+        const match = await matchResumeToInterview(resumeText);
+        if (!match) {
+          console.warn(`CV watcher: Auto-match failed for ${basename} — no suitable interview found`);
+          return;
+        }
+        interviewId = match.interviewId;
+        assignmentMethod = "auto";
+        matchConfidence = match.confidence;
+        console.log(`CV watcher: Auto-assigned ${basename} → "${match.title}" (${match.confidence}%)`);
+      } else {
+        interviewId = parentDir;
+      }
+
       const threadId = uuidv4();
       const config = { configurable: { thread_id: threadId } };
 
-      console.log(`CV watcher: Processing ${basename} → ${candidateEmail} (interview: ${interviewId})`);
+      console.log(`CV watcher: Processing ${basename} → ${candidateEmail} (interview: ${interviewId}, ${assignmentMethod})`);
 
       try {
-        await compiledGraph.invoke({ candidateEmail, resumeBuffer: buf, threadId, interviewId }, config);
+        await compiledGraph.invoke(
+          { candidateEmail, resumeBuffer: buf, threadId, interviewId, assignmentMethod, matchConfidence },
+          config
+        );
         console.log(`CV watcher: Graph completed for ${candidateEmail} (${threadId})`);
       } catch (err) {
         console.error(`CV watcher: Graph error for ${candidateEmail}:`, err.message);
@@ -125,5 +152,5 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
       }
     });
 
-  console.log(`CV watcher: Watching ${cvsDir} for new PDF/DOC/DOCX files (place in cvs/<interview_id>/ subfolders)`);
+  console.log(`CV watcher: Watching ${cvsDir} for new PDF/DOC/DOCX files (place in cvs/<interview_id>/ or cvs/auto/)`);
 }

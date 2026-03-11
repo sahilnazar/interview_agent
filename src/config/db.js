@@ -173,6 +173,18 @@ export async function initDB() {
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$
   `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS assignment_method TEXT DEFAULT 'manual';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS match_confidence REAL;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
 
   // JD chunks for RAG — scoped per interview (requires pgvector)
   try {

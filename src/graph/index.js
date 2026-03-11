@@ -19,6 +19,8 @@ const InterviewState = Annotation.Root({
   messages:       Annotation({ reducer: (a, b) => [...a, ...b], default: () => [] }),
   threadId:       Annotation({ reducer: (_, v) => v, default: () => "" }),
   interviewId:    Annotation({ reducer: (_, v) => v, default: () => "" }),
+  assignmentMethod: Annotation({ reducer: (_, v) => v, default: () => "manual" }),
+  matchConfidence:  Annotation({ reducer: (_, v) => v, default: () => null }),
 });
 
 // ---------------------------------------------------------------------------

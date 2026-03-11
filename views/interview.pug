@@ -58,6 +58,7 @@ block content
           tr
             th Email
             th Status
+            th Assigned
             th Resume Score
             th English Score
             th Skills
@@ -73,6 +74,11 @@ block content
                 span(class=`badge badge-${s}`)= c.status
                 if c.status === 'Rejected' && c.rejection_sent
                   span.badge-sent(title="Rejection email sent") ✉
+              td
+                if c.assignment_method === 'auto'
+                  span.badge.badge-auto(title=`Auto-assigned with ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : '?'} confidence`) Auto #{c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}
+                else
+                  span(style="color:var(--text-muted);font-size:12px") Manual
               td.score= c.resume_score != null ? c.resume_score.toFixed(1) + '%' : '—'
               td.score= c.english_score != null ? c.english_score.toFixed(1) : '—'
               td
@@ -95,7 +101,7 @@ block content
                   button.btn-sm.btn-delete(type="submit") ✕ Delete
             if parsed
               tr.summary-row(id=`summary-${c.thread_id}` style="display:none")
-                td(colspan="7")
+                td(colspan="8")
                   .summary-box
                     p= parsed.summary
                     h4 ✓ Matching
@@ -112,6 +118,8 @@ block content
     h2 CV Folder Watcher
     p(style="color:var(--text-muted);font-size:13px")
       | Drop PDF, DOC, or DOCX resumes into #[code cvs/#{interview.id}/] to auto-process them.
+      br
+      | Or drop into #[code cvs/auto/] to let the agent auto-assign to the best-matching interview.
       br
       | Filename format: #[code email@domain.com.pdf] (or .doc / .docx)
 
@@ -174,16 +182,21 @@ block content
         const matching = (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('');
         const missing = (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('');
         summaryRow = `<tr class="summary-row" id="summary-${c.thread_id}" style="display:none">
-          <td colspan="7"><div class="summary-box">
+          <td colspan="8"><div class="summary-box">
             <p>${esc(parsed.summary || '')}</p>
             <h4>✓ Matching</h4><div>${matching || '—'}</div>
             <h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>
           </div></td></tr>`;
       }
 
+      const assignedBadge = c.assignment_method === 'auto'
+        ? `<span class="badge badge-auto" title="Auto-assigned ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}">Auto ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}</span>`
+        : '<span style="color:var(--text-muted);font-size:12px">Manual</span>';
+
       return `<tr>
         <td>${esc(c.email)}</td>
         <td><span class="${badgeClass(c.status)}">${esc(c.status)}</span>${sentBadge}</td>
+        <td>${assignedBadge}</td>
         <td class="score">${score}</td>
         <td class="score">${c.english_score != null ? Number(c.english_score).toFixed(1) : '—'}</td>
         <td>${skills}</td>

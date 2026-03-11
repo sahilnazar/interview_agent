@@ -7,7 +7,7 @@ const router = Router();
 router.get("/interviews/:id/candidates", async (req, res, next) => {
   try {
     const result = await query(
-      "SELECT thread_id, email, status, resume_score, summary, english_score, skills, rejection_sent, created_at FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
+      "SELECT thread_id, email, status, resume_score, summary, english_score, skills, rejection_sent, assignment_method, match_confidence, created_at FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
       [req.params.id]
     );
     res.json(result.rows);

@@ -85,7 +85,7 @@ router.get("/interviews/:id", async (req, res, next) => {
     if (!intRow.rows.length) return res.status(404).send("Interview not found");
 
     const candidates = await query(
-      "SELECT thread_id, email, status, resume_score, summary, english_score, skills, rejection_sent, created_at FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
+      "SELECT thread_id, email, status, resume_score, summary, english_score, skills, rejection_sent, assignment_method, match_confidence, created_at FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
       [id]
     );
 
