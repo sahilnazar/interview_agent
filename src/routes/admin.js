@@ -134,7 +134,7 @@ router.post("/interviews/:id/trigger", resumeUpload.single("resume"), async (req
     const { id } = req.params;
     const { email } = req.body;
     if (!email) return res.status(400).send("Email is required");
-    if (!req.file) return res.status(400).send("Resume PDF is required");
+    if (!req.file) return res.status(400).send("Resume file is required (PDF, DOC, or DOCX)");
 
     const threadId = uuidv4();
     const config = { configurable: { thread_id: threadId } };

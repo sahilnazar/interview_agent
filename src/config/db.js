@@ -154,7 +154,7 @@ export async function initDB() {
     console.log("Seeded default admin — username: admin, password: admin123");
   }
 
-  // Candidate auth columns (login_token + password_hash)
+  // Candidate auth columns (login_token + password_hash + must_change_password)
   await query(`
     DO $$ BEGIN
       ALTER TABLE candidates ADD COLUMN IF NOT EXISTS login_token TEXT UNIQUE;
@@ -164,6 +164,12 @@ export async function initDB() {
   await query(`
     DO $$ BEGIN
       ALTER TABLE candidates ADD COLUMN IF NOT EXISTS password_hash TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT TRUE;
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$
   `);

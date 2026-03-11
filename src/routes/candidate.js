@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import bcrypt from "bcrypt";
 
 import { query } from "../config/db.js";
 import { INTERVIEW_QUESTION } from "../config/env.js";
@@ -14,6 +15,38 @@ const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
+
+// GET /candidate/change-password — show change-password form
+router.get("/change-password", requireCandidate, (req, res) => {
+  res.render("change-password", { error: null });
+});
+
+// POST /candidate/change-password — process password change
+router.post("/change-password", requireCandidate, async (req, res, next) => {
+  try {
+    const { newPassword, confirmPassword } = req.body;
+    if (!newPassword || !confirmPassword) {
+      return res.render("change-password", { error: "All fields are required" });
+    }
+    if (newPassword.length < 6) {
+      return res.render("change-password", { error: "Password must be at least 6 characters" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.render("change-password", { error: "Passwords do not match" });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await query(
+      "UPDATE candidates SET password_hash = $1, must_change_password = FALSE WHERE thread_id = $2",
+      [hash, req.session.candidate.threadId]
+    );
+
+    req.session.candidate.mustChangePassword = false;
+    res.redirect("/candidate/dashboard");
+  } catch (err) {
+    next(err);
+  }
+});
 
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 

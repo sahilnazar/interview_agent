@@ -37,10 +37,10 @@ router.get("/candidate", (req, res) => {
 
 router.post("/candidate", async (req, res, next) => {
   try {
-    const { email, token, password } = req.body;
-    if (!email || !token || !password) return res.render("login-candidate", { error: "All fields are required" });
+    const { email, password } = req.body;
+    if (!email || !password) return res.render("login-candidate", { error: "All fields are required" });
 
-    const result = await query("SELECT * FROM candidates WHERE email = $1 AND login_token = $2", [email, token]);
+    const result = await query("SELECT * FROM candidates WHERE email = $1", [email]);
     if (!result.rows.length) return res.render("login-candidate", { error: "Invalid credentials" });
 
     const candidate = result.rows[0];
@@ -53,7 +53,11 @@ router.post("/candidate", async (req, res, next) => {
       threadId: candidate.thread_id,
       email: candidate.email,
       interviewId: candidate.interview_id,
+      mustChangePassword: !!candidate.must_change_password,
     };
+    if (candidate.must_change_password) {
+      return res.redirect("/candidate/change-password");
+    }
     res.redirect("/candidate/dashboard");
   } catch (err) {
     next(err);

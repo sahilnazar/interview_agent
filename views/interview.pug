@@ -39,8 +39,8 @@ block content
           label Candidate Email
           input(type="email" name="email" required placeholder="applicant@example.com")
         div
-          label Resume (PDF)
-          input(type="file" name="resume" accept=".pdf" required style="padding:8px")
+          label Resume (PDF, DOC, DOCX)
+          input(type="file" name="resume" accept=".pdf,.doc,.docx" required style="padding:8px")
       button.btn(type="submit") Run Pipeline
 
   //- ── Candidates Table ────────────────────────────────────
@@ -111,9 +111,9 @@ block content
   .card
     h2 CV Folder Watcher
     p(style="color:var(--text-muted);font-size:13px")
-      | Drop PDF resumes into #[code cvs/#{interview.id}/] to auto-process them.
+      | Drop PDF, DOC, or DOCX resumes into #[code cvs/#{interview.id}/] to auto-process them.
       br
-      | Filename format: #[code email@domain.com.pdf]
+      | Filename format: #[code email@domain.com.pdf] (or .doc / .docx)
 
   script.
     const INTERVIEW_ID = '#{interview.id}';

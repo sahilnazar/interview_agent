@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import chokidar from "chokidar";
-import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
+import WordExtractor from "word-extractor";
+import { extractPdfText } from "./pdf-extract.js";
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
@@ -20,6 +22,24 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
   fs.mkdirSync(processedDir, { recursive: true });
 
   const processing = new Set();
+  const queue = [];
+  let running = false;
+
+  async function drainQueue() {
+    if (running) return;
+    running = true;
+    while (queue.length > 0) {
+      const filePath = queue.shift();
+      await processCV(filePath);
+    }
+    running = false;
+  }
+
+  function enqueue(filePath) {
+    if (processing.has(filePath)) return;
+    queue.push(filePath);
+    drainQueue();
+  }
 
   async function processCV(filePath) {
     const basename = path.basename(filePath);
@@ -44,20 +64,29 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
       if (buf.length === 0) { console.warn(`CV watcher: ${basename} is empty — skipped`); return; }
 
       let resumeText = "";
+      const ext = path.extname(filePath).toLowerCase();
       try {
-        const pdfData = await pdfParse(buf);
-        resumeText = pdfData.text;
+        if (ext === ".docx") {
+          const result = await mammoth.extractRawText({ buffer: buf });
+          resumeText = (result.value || "").trim();
+        } else if (ext === ".doc") {
+          const extractor = new WordExtractor();
+          const doc = await extractor.extract(buf);
+          resumeText = (doc.getBody() || "").trim();
+        } else {
+          resumeText = await extractPdfText(buf);
+        }
       } catch {
         resumeText = buf.toString("utf-8");
       }
 
       const emails = resumeText.match(EMAIL_REGEX) || [];
-      const nameWithoutExt = basename.replace(/\.pdf$/i, "");
+      const nameWithoutExt = basename.replace(/\.(pdf|docx?|)$/i, "");
       const filenameEmails = nameWithoutExt.match(EMAIL_REGEX) || [];
       const candidateEmail = filenameEmails[0] || emails[0];
 
       if (!candidateEmail) {
-        console.warn(`CV watcher: No email found in ${basename} — skipped (rename file to email@domain.pdf)`);
+        console.warn(`CV watcher: No email found in ${basename} — skipped (rename file to email@domain.pdf/.doc/.docx)`);
         return;
       }
 
@@ -66,10 +95,12 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
 
       console.log(`CV watcher: Processing ${basename} → ${candidateEmail} (interview: ${interviewId})`);
 
-      compiledGraph
-        .invoke({ candidateEmail, resumeBuffer: buf, threadId, interviewId }, config)
-        .then(() => console.log(`CV watcher: Graph completed for ${candidateEmail} (${threadId})`))
-        .catch((err) => console.error(`CV watcher: Graph error for ${candidateEmail}:`, err.message));
+      try {
+        await compiledGraph.invoke({ candidateEmail, resumeBuffer: buf, threadId, interviewId }, config);
+        console.log(`CV watcher: Graph completed for ${candidateEmail} (${threadId})`);
+      } catch (err) {
+        console.error(`CV watcher: Graph error for ${candidateEmail}:`, err.message);
+      }
 
       const dest = path.join(processedDir, `${Date.now()}-${basename}`);
       fs.renameSync(filePath, dest);
@@ -88,10 +119,11 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
       ignoreInitial: false,
     })
     .on("add", (filePath) => {
-      if (path.extname(filePath).toLowerCase() === ".pdf") {
-        processCV(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext === ".pdf" || ext === ".doc" || ext === ".docx") {
+        enqueue(filePath);
       }
     });
 
-  console.log(`CV watcher: Watching ${cvsDir} for new PDFs (place in cvs/<interview_id>/ subfolders)`);
+  console.log(`CV watcher: Watching ${cvsDir} for new PDF/DOC/DOCX files (place in cvs/<interview_id>/ subfolders)`);
 }

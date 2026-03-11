@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { HumanMessage } from "@langchain/core/messages";
-import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
+import WordExtractor from "word-extractor";
+import { extractPdfText } from "../services/pdf-extract.js";
 import bcrypt from "bcrypt";
 
 import { query } from "../config/db.js";
@@ -18,12 +20,13 @@ export async function checkDomainAndDuplicate(state) {
   const buf = toBuffer(resumeBuffer);
   const hash = crypto.createHash("sha256").update(buf).digest("hex");
 
-  // Duplicate check scoped to this interview
+  // Duplicate check scoped to this interview (by file hash OR email)
   const dup = await query(
-    "SELECT thread_id FROM candidates WHERE resume_hash = $1 AND interview_id = $2",
-    [hash, interviewId]
+    "SELECT thread_id FROM candidates WHERE interview_id = $1 AND (resume_hash = $2 OR email = $3)",
+    [interviewId, hash, candidateEmail]
   );
   if (dup.rows.length > 0) {
+    console.log(`Duplicate candidate detected for ${candidateEmail} in interview ${interviewId} — skipping`);
     return { status: "Rejected", resumeHash: hash };
   }
 
@@ -46,43 +49,30 @@ export async function analyzeResume(state) {
     const buf = toBuffer(resumeBuffer);
     let resumeText = "";
 
-    // 1. Try pdf-parse
-    try {
-      const pdfData = await pdfParse(buf);
-      resumeText = (pdfData.text || "").trim();
-    } catch (pdfErr) {
-      console.warn(`[${threadId}] pdf-parse failed: ${pdfErr.message}`);
-    }
+    // Detect file type from magic bytes
+    const isDocx = buf[0] === 0x50 && buf[1] === 0x4B; // PK (ZIP/DOCX)
+    const isDoc = buf[0] === 0xD0 && buf[1] === 0xCF;  // OLE compound (DOC)
 
-    // 2. If pdf-parse returned very little, try regex extraction from raw bytes
-    if (resumeText.length < 100) {
-      console.warn(`[${threadId}] pdf-parse returned only ${resumeText.length} chars — trying raw text extraction`);
-      const raw = buf.toString("latin1");
-      // Extract text between BT/ET operators (PDF text objects)
-      const btEtMatches = raw.match(/BT[\s\S]*?ET/g);
-      if (btEtMatches) {
-        const extracted = btEtMatches
-          .join(" ")
-          .replace(/\\[nrt]/g, " ")
-          .replace(/[^\x20-\x7E\n]/g, " ")
-          .replace(/\s{2,}/g, " ")
-          .trim();
-        if (extracted.length > resumeText.length) {
-          resumeText = extracted;
-          console.log(`[${threadId}] Raw extraction recovered ${extracted.length} chars`);
-        }
+    if (isDocx) {
+      try {
+        const result = await mammoth.extractRawText({ buffer: buf });
+        resumeText = (result.value || "").trim();
+        console.log(`[${threadId}] Extracted ${resumeText.length} chars from DOCX`);
+      } catch (docxErr) {
+        console.warn(`[${threadId}] mammoth DOCX parse failed: ${docxErr.message}`);
       }
-      // Also try pulling parenthesized strings (Tj operator)
-      if (resumeText.length < 100) {
-        const tjStrings = raw.match(/\(([^)]{2,})\)\s*Tj/g);
-        if (tjStrings) {
-          const extracted = tjStrings.map(s => s.replace(/^\(|\)\s*Tj$/g, "")).join(" ").trim();
-          if (extracted.length > resumeText.length) {
-            resumeText = extracted;
-            console.log(`[${threadId}] Tj extraction recovered ${extracted.length} chars`);
-          }
-        }
+    } else if (isDoc) {
+      try {
+        const extractor = new WordExtractor();
+        const doc = await extractor.extract(buf);
+        resumeText = (doc.getBody() || "").trim();
+        console.log(`[${threadId}] Extracted ${resumeText.length} chars from DOC`);
+      } catch (docErr) {
+        console.warn(`[${threadId}] word-extractor DOC parse failed: ${docErr.message}`);
       }
+    } else {
+      // PDF: multi-strategy extraction (pdf-parse → pdfjs-dist → raw regex)
+      resumeText = await extractPdfText(buf);
     }
 
     if (resumeText.length < 50) {
@@ -157,18 +147,18 @@ export async function analyzeResume(state) {
 export async function sendInvite(state) {
   const { threadId, candidateEmail } = state;
 
-  // Generate unique login credentials
+  // Generate login credentials
   const loginToken = crypto.randomBytes(4).toString("hex"); // 8-char hex
   const plainPassword = crypto.randomBytes(6).toString("base64url"); // ~8 chars
   const passwordHash = await bcrypt.hash(plainPassword, 10);
 
   await query(
-    "UPDATE candidates SET login_token = $1, password_hash = $2 WHERE thread_id = $3",
+    "UPDATE candidates SET login_token = $1, password_hash = $2, must_change_password = TRUE WHERE thread_id = $3",
     [loginToken, passwordHash, threadId]
   );
 
   try {
-    await sendInvitationEmail(candidateEmail, threadId, loginToken, plainPassword);
+    await sendInvitationEmail(candidateEmail, threadId, plainPassword);
   } catch (err) {
     console.error("Failed to send invitation email:", err.message);
   }
