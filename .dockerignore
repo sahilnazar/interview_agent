@@ -1,6 +1,12 @@
 node_modules/
 .env
 .env.docker
+.git/
+.gitignore
 uploads/
 cvs/processed/
+cvs/auto/
 *.pdf
+*.doc
+*.docx
+README.md
