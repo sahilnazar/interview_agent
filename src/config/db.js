@@ -136,6 +136,23 @@ export async function initDB() {
     ON CONFLICT (key) DO NOTHING
   `);
 
+  // IMAP email ingestion defaults
+  const imapDefaults = [
+    ['imap_enabled', 'false'],
+    ['imap_host', ''],
+    ['imap_port', '993'],
+    ['imap_user', ''],
+    ['imap_password', ''],
+    ['imap_poll_interval', '60'],
+    ['imap_folder', 'INBOX'],
+  ];
+  for (const [key, value] of imapDefaults) {
+    await query(
+      "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING",
+      [key, value]
+    );
+  }
+
   // Admins table
   await query(`
     CREATE TABLE IF NOT EXISTS admins (

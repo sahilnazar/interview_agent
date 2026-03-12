@@ -8,6 +8,7 @@ import { initMCPClients } from "./services/mcp.js";
 import { createGraph } from "./graph/index.js";
 import { createApp } from "./app.js";
 import { startCVWatcher } from "./services/watcher.js";
+import { startEmailIngest } from "./services/email-ingest.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CVS_DIR = path.join(__dirname, "..", "cvs");
@@ -23,6 +24,7 @@ async function main() {
   app.locals.compiledGraph = compiledGraph;
 
   startCVWatcher(CVS_DIR, CVS_PROCESSED_DIR, compiledGraph);
+  startEmailIngest(path.join(CVS_DIR, "auto"));
 
   app.listen(PORT, () => {
     console.log(`Interview Assistant running → http://localhost:${PORT}/admin`);
