@@ -45,6 +45,7 @@ async function pollInbox(cvsAutoDir) {
     });
 
     await client.connect();
+    console.log("Email ingest: Connected to IMAP server");
     const lock = await client.getMailboxLock(cfg.folder);
 
     try {
@@ -121,6 +122,8 @@ async function pollInbox(cvsAutoDir) {
     await client.logout();
   } catch (err) {
     console.error("Email ingest: Poll error:", err.message);
+    if (err.responseStatus) console.error("  IMAP response:", err.responseStatus);
+    if (err.responseText) console.error("  IMAP detail:", err.responseText);
   } finally {
     isRunning = false;
     if (client) {
@@ -144,7 +147,7 @@ export async function startEmailIngest(cvsAutoDir) {
     return;
   }
 
-  console.log(`Email ingest: Polling ${cfg.user}@${cfg.host} every ${cfg.pollInterval}s`);
+  console.log(`Email ingest: Polling ${cfg.user} on ${cfg.host} every ${cfg.pollInterval}s`);
 
   // Run once immediately, then on interval
   pollInbox(cvsAutoDir);
