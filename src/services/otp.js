@@ -10,12 +10,12 @@ export async function sendInterviewerOTP(interviewer) {
   // Invalidate any previous unused OTPs for this interviewer
   await query(
     "UPDATE interviewer_otps SET used = TRUE WHERE interviewer_id = $1 AND used = FALSE",
-    [interviewer.id]
+    [interviewer.id],
   );
 
   await query(
     "INSERT INTO interviewer_otps (interviewer_id, otp_code, expires_at) VALUES ($1, $2, $3)",
-    [interviewer.id, code, expiresAt]
+    [interviewer.id, code, expiresAt],
   );
 
   await sendEmail(
@@ -29,7 +29,7 @@ export async function sendInterviewerOTP(interviewer) {
         ${code}
       </div>
       <p style="color:#94a3b8;font-size:12px">This code expires in 10 minutes. Do not share it with anyone.</p>
-    </div>`
+    </div>`,
   );
 
   return code; // returned only for testing; not exposed in routes
@@ -47,13 +47,15 @@ export async function verifyInterviewerOTP(email, code) {
        AND o.expires_at > NOW()
      ORDER BY o.expires_at DESC
      LIMIT 1`,
-    [email, code]
+    [email, code],
   );
 
   if (!result.rows.length) return null;
 
   const row = result.rows[0];
-  await query("UPDATE interviewer_otps SET used = TRUE WHERE id = $1", [row.id]);
+  await query("UPDATE interviewer_otps SET used = TRUE WHERE id = $1", [
+    row.id,
+  ]);
 
   return { id: row.interviewer_id, name: row.name, email: row.email };
 }

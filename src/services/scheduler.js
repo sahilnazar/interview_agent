@@ -53,7 +53,7 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
      FROM interview_interviewers ii
      JOIN interviewers i ON i.id = ii.interviewer_id
      WHERE ii.interview_id = $1`,
-    [interviewId]
+    [interviewId],
   );
 
   if (!intAssign.rows.length) return [];
@@ -75,7 +75,7 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
        )
      ORDER BY s.slot_start
      LIMIT $2`,
-    [interviewerIds, limit * 4] // fetch extra, LLM will shortlist
+    [interviewerIds, limit * 4], // fetch extra, LLM will shortlist
   );
 
   if (!slotsResult.rows.length) return [];
@@ -87,7 +87,10 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
   try {
     const model = getGroqModel();
     const slotList = slotsResult.rows
-      .map((s, i) => `${i + 1}. ${fmt(s.slot_start)} – ${fmt(s.slot_end)} (${s.interviewer_name})`)
+      .map(
+        (s, i) =>
+          `${i + 1}. ${fmt(s.slot_start)} – ${fmt(s.slot_end)} (${s.interviewer_name})`,
+      )
       .join("\n");
 
     const prompt = `You are a scheduling assistant. Pick the ${limit} best interview slots from the list below.
@@ -97,11 +100,16 @@ Return ONLY the 1-based indices as JSON array, e.g. [1,3,5].
 Slots:
 ${slotList}`;
 
-    const res = await callWithRetry(() => model.invoke([new HumanMessage(prompt)]));
+    const res = await callWithRetry(() =>
+      model.invoke([new HumanMessage(prompt)]),
+    );
     const raw = String(res.content).match(/\[[\d,\s]+\]/)?.[0];
     if (raw) {
-      const indices = JSON.parse(raw).map((n) => n - 1).filter((n) => n >= 0 && n < slotsResult.rows.length);
-      if (indices.length) return indices.map((i) => slotsResult.rows[i]).slice(0, limit);
+      const indices = JSON.parse(raw)
+        .map((n) => n - 1)
+        .filter((n) => n >= 0 && n < slotsResult.rows.length);
+      if (indices.length)
+        return indices.map((i) => slotsResult.rows[i]).slice(0, limit);
     }
   } catch {
     // fall through to chronological
@@ -119,14 +127,16 @@ ${slotList}`;
 export async function scheduleCandidate(candidateId, interviewId) {
   const candidateResult = await query(
     "SELECT * FROM candidates WHERE thread_id = $1",
-    [candidateId]
+    [candidateId],
   );
   if (!candidateResult.rows.length) throw new Error("Candidate not found");
   const candidate = candidateResult.rows[0];
 
   const slots = await findAvailableSlots(interviewId, candidateId, 5);
   if (!slots.length) {
-    console.warn(`scheduleCandidate: No available slots for interview ${interviewId}`);
+    console.warn(
+      `scheduleCandidate: No available slots for interview ${interviewId}`,
+    );
     return { scheduled: false, reason: "no_slots" };
   }
 
@@ -150,7 +160,7 @@ export async function scheduleCandidate(candidateId, interviewId) {
         slot.slot_end,
         candidateToken,
         interviewerToken,
-      ]
+      ],
     );
     created.push({
       ...ins.rows[0],
@@ -183,7 +193,7 @@ export async function sendCandidateSlotEmail(email, candidateId, slots) {
           Choose this slot
         </a>
       </td>
-    </tr>`
+    </tr>`,
     )
     .join("");
 
@@ -199,7 +209,7 @@ export async function sendCandidateSlotEmail(email, candidateId, slots) {
       <p style="color:#94a3b8;font-size:12px">
         If none of these times work, please contact us and we'll find an alternative.
       </p>
-    </div>`
+    </div>`,
   );
 }
 
@@ -210,7 +220,7 @@ export async function sendInterviewerConfirmationRequest(scheduledId) {
      JOIN interviewers i ON i.id = si.interviewer_id
      JOIN candidates c ON c.thread_id = si.candidate_id
      WHERE si.id = $1`,
-    [scheduledId]
+    [scheduledId],
   );
   if (!result.rows.length) return;
   const si = result.rows[0];
@@ -243,7 +253,7 @@ export async function sendInterviewerConfirmationRequest(scheduledId) {
       <p style="color:#94a3b8;font-size:12px">
         Or visit: <a href="${confirmUrl}" style="color:#4f6ef7">${confirmUrl}</a>
       </p>
-    </div>`
+    </div>`,
   );
 }
 
@@ -254,7 +264,7 @@ export async function sendScheduleConfirmedEmails(scheduledId) {
      JOIN interviewers i ON i.id = si.interviewer_id
      JOIN candidates c ON c.thread_id = si.candidate_id
      WHERE si.id = $1`,
-    [scheduledId]
+    [scheduledId],
   );
   if (!result.rows.length) return;
   const si = result.rows[0];
@@ -271,19 +281,27 @@ export async function sendScheduleConfirmedEmails(scheduledId) {
             <td><strong>${si.iname}</strong></td></tr>
         <tr><td style="padding:6px 16px 6px 0;color:#888">Candidate:</td>
             <td><strong>${si.cemail}</strong></td></tr>
-        ${si.meet_link ? `<tr><td style="padding:6px 16px 6px 0;color:#888">Meet Link:</td>
-            <td><a href="${si.meet_link}" style="color:#4f6ef7">${si.meet_link}</a></td></tr>` : ""}
+        ${
+          si.meet_link
+            ? `<tr><td style="padding:6px 16px 6px 0;color:#888">Meet Link:</td>
+            <td><a href="${si.meet_link}" style="color:#4f6ef7">${si.meet_link}</a></td></tr>`
+            : ""
+        }
       </table>
       <p style="color:#94a3b8;font-size:12px">Please add this to your calendar.</p>
     </div>`;
 
   await sendEmail(si.cemail, "Your Interview is Confirmed!", body("there"));
-  await sendEmail(si.iemail, "Interview Confirmed — Calendar Update", body(si.iname));
+  await sendEmail(
+    si.iemail,
+    "Interview Confirmed — Calendar Update",
+    body(si.iname),
+  );
 
   // Mark candidate as scheduled
   await query(
     "UPDATE candidates SET status = 'Scheduled', scheduled_interview_id = $1 WHERE thread_id = $2",
-    [scheduledId, si.candidate_id]
+    [scheduledId, si.candidate_id],
   );
 }
 
@@ -294,7 +312,7 @@ export async function sendScheduleRejectedEmail(scheduledId, rejectedBy) {
      JOIN interviewers i ON i.id = si.interviewer_id
      JOIN candidates c ON c.thread_id = si.candidate_id
      WHERE si.id = $1`,
-    [scheduledId]
+    [scheduledId],
   );
   if (!result.rows.length) return;
   const si = result.rows[0];
@@ -308,7 +326,7 @@ export async function sendScheduleRejectedEmail(scheduledId, rejectedBy) {
         <h2>Slot no longer available</h2>
         <p>Unfortunately the interviewer is no longer available for your chosen slot.</p>
         <p>Please check your email for a new set of time options, or contact us directly.</p>
-      </div>`
+      </div>`,
     );
   } else {
     // Notify candidate their declined slot
@@ -318,7 +336,7 @@ export async function sendScheduleRejectedEmail(scheduledId, rejectedBy) {
       `<div style="font-family:sans-serif;max-width:600px">
         <h2>Interview Slot Declined</h2>
         <p>Your selected interview slot has been declined. We will be in touch with alternative options.</p>
-      </div>`
+      </div>`,
     );
   }
 }
