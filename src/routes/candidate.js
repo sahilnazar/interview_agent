@@ -9,6 +9,7 @@ import { query } from "../config/db.js";
 import { INTERVIEW_QUESTION } from "../config/env.js";
 import { requireCandidate } from "../middleware/auth.js";
 import { analyzeVideoForCandidate } from "../graph/actions.js";
+import { sendInterviewerConfirmationRequest } from "../services/scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
@@ -133,6 +134,75 @@ router.post("/upload-video", requireCandidate, (req, res, next) => {
       next(err);
     }
   });
+});
+
+// ─── GET /candidate/schedule/accept/:token ────────────────────────────────
+// Token link from email — candidate picks this slot (no login needed)
+router.get("/schedule/accept/:token", async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT si.*, i.name AS interviewer_name, c.email AS candidate_email
+       FROM scheduled_interviews si
+       JOIN interviewers i ON i.id = si.interviewer_id
+       JOIN candidates c ON c.thread_id = si.candidate_id
+       WHERE si.candidate_token = $1`,
+      [token]
+    );
+    if (!result.rows.length) return res.status(404).send("Link invalid or expired");
+    const si = result.rows[0];
+
+    if (si.status !== "pending_candidate") {
+      return res.render("schedule-done", {
+        role: "candidate",
+        decision: si.status === "confirmed" ? "confirm" : "already",
+        slot_start: si.slot_start,
+      });
+    }
+
+    res.render("schedule-respond", { si, role: "candidate", token, error: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /candidate/schedule/accept/:token ───────────────────────────────
+router.post("/schedule/accept/:token", async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      "SELECT * FROM scheduled_interviews WHERE candidate_token = $1",
+      [token]
+    );
+    if (!result.rows.length) return res.status(404).send("Link invalid or expired");
+    const si = result.rows[0];
+
+    if (si.status !== "pending_candidate") {
+      return res.render("schedule-done", { role: "candidate", decision: "already", slot_start: si.slot_start });
+    }
+
+    // Mark this slot as pending_interviewer; cancel the other pending options for this candidate
+    await query(
+      `UPDATE scheduled_interviews
+       SET status = 'cancelled'
+       WHERE candidate_id = $1
+         AND status = 'pending_candidate'
+         AND id != $2`,
+      [si.candidate_id, si.id]
+    );
+
+    await query(
+      "UPDATE scheduled_interviews SET status = 'pending_interviewer' WHERE id = $1",
+      [si.id]
+    );
+
+    // Notify interviewer
+    await sendInterviewerConfirmationRequest(si.id);
+
+    res.render("schedule-done", { role: "candidate", decision: "confirm", slot_start: si.slot_start });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

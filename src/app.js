@@ -10,6 +10,8 @@ import uploadRouter from "./routes/upload.js";
 import apiRouter from "./routes/api.js";
 import authRouter from "./routes/auth.js";
 import candidateRouter from "./routes/candidate.js";
+import interviewerRouter from "./routes/interviewer.js";
+import interviewersAdminRouter from "./routes/interviewers-admin.js";
 import { requireAdmin } from "./middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,10 +37,12 @@ export function createApp() {
   // Routes
   app.get("/", (_req, res) => res.redirect("/login/admin"));
   app.use("/login", authRouter);
+  app.use("/admin/interviewers", requireAdmin, interviewersAdminRouter);
   app.use("/admin", requireAdmin, adminRouter);
   app.use("/candidate", candidateRouter);
   app.use("/upload", uploadRouter);
   app.use("/api", apiRouter);
+  app.use("/interviewer", interviewerRouter);
 
   // Error handler
   app.use((err, _req, res, _next) => {

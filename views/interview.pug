@@ -5,6 +5,53 @@ block content
     a.back-link(href="/admin") ← All Interviews
     h1= interview.title
 
+  //- ── Interviewer Panel ───────────────────────────────────
+  .card
+    .card-header-row
+      h2 Assigned Interviewers
+      a.btn-sm.btn-invite(href="/admin/interviewers" style="font-size:12px;padding:6px 14px") Manage All →
+    if assignedInterviewers && assignedInterviewers.length
+      table(style="margin-bottom:16px")
+        thead
+          tr
+            th Name
+            th Email
+            th Department
+            th Avail. Slots
+            th
+        tbody
+          each iv in assignedInterviewers
+            tr
+              td= iv.name
+              td= iv.email
+              td= iv.department || '—'
+              td= iv.available_slots || 0
+              td
+                form(action=`/admin/interviewers/${iv.id}/unassign/${interview.id}` method="POST" style="display:inline")
+                  button.btn-sm.btn-delete(type="submit") − Remove
+    else
+      p(style="color:var(--text-muted);font-size:13px;margin-bottom:16px") No interviewers assigned yet.
+    if allInterviewers && allInterviewers.length
+      form(id="assign-form" method="POST" action="/admin/interviewers/" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap" onsubmit="return setAssignAction(event)")
+        input(type="hidden" name="interviewerId" id="assign-interviewer-id")
+        select#assign-sel(name="interviewerId" style="margin-bottom:0;width:auto;min-width:220px" required)
+          option(value="") — select interviewer —
+          each iv in allInterviewers
+            option(value=iv.id)= iv.name + ' <' + iv.email + '>'
+        button.btn(type="submit" style="margin-bottom:0") + Assign
+      script.
+        function setAssignAction(e) {
+          var sel = document.getElementById('assign-sel');
+          var form = document.getElementById('assign-form');
+          var interviewerId = sel.value;
+          if (!interviewerId) return false;
+          // Use the actual interview id from the server
+          var interviewId = !window.__interviewId ? (typeof interview !== 'undefined' ? interview.id : null) : window.__interviewId;
+          if (!interviewId) interviewId = '#{interview.id}';
+          form.action = '/admin/interviewers/' + interviewerId + '/assign/' + interviewId;
+          return true;
+        }
+
   //- ── Settings Panel ──────────────────────────────────────
   .card
     h2 Interview Settings
@@ -94,6 +141,9 @@ block content
                 if c.status === 'Rejected'
                   form(action=`/admin/interviews/${interview.id}/reselect/${c.thread_id}` method="POST" style="display:inline")
                     button.btn-sm.btn-invite(type="submit") ↩ Re-select
+                if c.status === 'Done'
+                  form(action=`/admin/interviewers/schedule/${c.thread_id}` method="POST" style="display:inline")
+                    button.btn-sm(type="submit" style="background:var(--accent)") 📅 Schedule
                 if c.status === 'Screened' || c.status === 'AwaitingVideo' || c.status === 'Done'
                   form(action=`/admin/interviews/${interview.id}/reject/${c.thread_id}` method="POST" style="display:inline")
                     button.btn-sm.btn-reject(type="submit") ✗ Reject

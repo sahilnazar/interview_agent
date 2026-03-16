@@ -89,9 +89,33 @@ router.get("/interviews/:id", async (req, res, next) => {
       [id]
     );
 
+    // Interviewers assigned to this interview
+    const assignedResult = await query(
+      `SELECT i.*,
+              COUNT(s.id) FILTER (WHERE s.status = 'available' AND s.slot_start > NOW()) AS available_slots
+       FROM interview_interviewers ii
+       JOIN interviewers i ON i.id = ii.interviewer_id
+       LEFT JOIN interviewer_slots s ON s.interviewer_id = i.id
+       WHERE ii.interview_id = $1
+       GROUP BY i.id
+       ORDER BY i.name`,
+      [id]
+    );
+
+    // All interviewers for the assign dropdown (exclude already assigned)
+    const assignedIds = assignedResult.rows.map((r) => r.id);
+    const allInterviewersResult = await query(
+      "SELECT id, name, email FROM interviewers ORDER BY name"
+    );
+    const allInterviewers = allInterviewersResult.rows.filter(
+      (r) => !assignedIds.includes(r.id)
+    );
+
     res.render("interview", {
       interview: intRow.rows[0],
       candidates: candidates.rows,
+      assignedInterviewers: assignedResult.rows,
+      allInterviewers,
     });
   } catch (err) {
     next(err);

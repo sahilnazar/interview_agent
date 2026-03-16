@@ -1,0 +1,35 @@
+extends layout-auth
+
+block content
+  .auth-container
+    .auth-card
+      .auth-logo Interview Assistant
+      h2 Interviewer Login
+
+      if step === 'email'
+        if error
+          .auth-error= error
+        form(action="/interviewer/login/send-otp" method="POST")
+          label Email Address
+          input(type="email" name="email" required autofocus placeholder="you@company.com" value=email)
+          button.btn(type="submit" style="width:100%") Send OTP →
+        p.auth-switch
+          | Are you an admin? 
+          a(href="/login/admin") Login here
+
+      else
+        if error
+          .auth-error= error
+        p(style="font-size:13px;color:var(--text-muted);margin-bottom:20px")
+          | We sent a 6-digit code to 
+          strong= email
+          br
+          | It expires in 10 minutes.
+        form(action="/interviewer/login/verify-otp" method="POST")
+          label One-Time Code
+          input(type="text" name="otp" required autofocus placeholder="123456" maxlength="6"
+            style="font-size:24px;letter-spacing:8px;text-align:center;font-family:'Syne',sans-serif;font-weight:700")
+          button.btn(type="submit" style="width:100%") Verify & Login →
+        p.auth-switch
+          | Wrong email?  
+          a(href="/interviewer/login") Start over
