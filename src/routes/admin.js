@@ -8,6 +8,7 @@ import { query } from "../config/db.js";
 import { reselectCandidateById, rejectCandidateById } from "../graph/actions.js";
 import { storeJDChunks, getEmbedStatus } from "../services/embeddings.js";
 import { sendRejectionEmail } from "../services/email.js";
+import { restartEmailIngest } from "../services/email-ingest.js";
 
 const router = Router();
 const resumeUpload = multer({ storage: multer.memoryStorage() });
@@ -52,6 +53,36 @@ router.post("/settings", async (req, res, next) => {
         [ollama_base_url.trim() || "http://localhost:11434"]
       );
     }
+    res.redirect("/admin");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/settings/imap — save IMAP email ingestion settings
+router.post("/settings/imap", async (req, res, next) => {
+  try {
+    const fields = ["imap_host", "imap_port", "imap_user", "imap_password", "imap_poll_interval", "imap_folder"];
+    const enabled = req.body.imap_enabled === "on" ? "true" : "false";
+
+    await query(
+      "INSERT INTO settings (key, value) VALUES ('imap_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [enabled]
+    );
+
+    for (const key of fields) {
+      if (req.body[key] !== undefined) {
+        await query(
+          "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+          [key, req.body[key].toString().trim()]
+        );
+      }
+    }
+
+    // Restart the poller with new settings
+    const cvsAutoDir = path.join(process.cwd(), "cvs", "auto");
+    await restartEmailIngest(cvsAutoDir);
+
     res.redirect("/admin");
   } catch (err) {
     next(err);
