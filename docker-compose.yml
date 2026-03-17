@@ -1,74 +1,48 @@
 services:
-  # ── PostgreSQL + pgvector ──────────────────────────────────────────────
-  postgres:
-    image: pgvector/pgvector:0.8.0-pg16
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: interview_agent_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${PGUSER:-admin}
-      POSTGRES_PASSWORD: ${PGPASSWORD:-admin@123}
-      POSTGRES_DB: ${PGDATABASE:-interview_assistant}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_password
+      POSTGRES_DB: interview_assistant
     ports:
-      - "${PGPORT_HOST:-5433}:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-admin} -d ${PGDATABASE:-interview_assistant}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d interview_assistant"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
 
-  # ── Ollama (local embeddings) ──────────────────────────────────────────
-  ollama:
-    image: ollama/ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    # Uncomment below for NVIDIA GPU passthrough:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-
-  # ── One-shot: pull the embedding model on first run ────────────────────
-  ollama-init:
-    image: ollama/ollama
-    depends_on:
-      ollama:
-        condition: service_healthy
-    restart: "no"
-    entrypoint: ["sh", "-c", "ollama pull nomic-embed-text"]
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-
-  # ── Interview Assistant App ────────────────────────────────────────────
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: interview_agent_app
     restart: unless-stopped
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
-    ports:
-      - "${PORT:-3001}:3001"
     env_file:
-      - .env.docker
-    volumes:
-      - ./cvs:/app/cvs
-      - ./uploads:/app/uploads
+      - .env
     environment:
-      - NODE_ENV=production
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: your_password
+      PGDATABASE: interview_assistant
+      PORT: "3000"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
+      - cvs_data:/app/cvs
 
 volumes:
   pgdata:
-  ollama_models:
+  uploads_data:
+  cvs_data:

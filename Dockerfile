@@ -1,32 +1,20 @@
-# ── Build stage ───────────────────────────────────────────────────────────
-FROM node:22-slim AS builder
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install build tools needed by bcrypt (native addon)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ && \
-    rm -rf /var/lib/apt/lists/*
+# Install only production dependencies first for better layer caching.
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-COPY package.json package-lock.json ./
-RUN npm ci --production
+# Copy application sources.
+COPY src ./src
+COPY views ./views
+COPY README.md ./README.md
 
-# ── Runtime stage ─────────────────────────────────────────────────────────
-FROM node:22-slim
+# Runtime folders used by uploads and CV watcher.
+RUN mkdir -p /app/uploads /app/cvs /app/cvs/processed
 
-WORKDIR /app
+ENV NODE_ENV=production
+EXPOSE 3000
 
-# Copy node_modules from builder
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy application code
-COPY package.json ./
-COPY src/ ./src/
-COPY views/ ./views/
-
-# Create directories for volumes
-RUN mkdir -p cvs uploads
-
-EXPOSE 3001
-
-CMD ["node", "src/server.js"]
+CMD ["npm", "start"]

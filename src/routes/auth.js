@@ -67,7 +67,9 @@ router.post("/candidate", async (req, res, next) => {
 // ─── Logout ──────────────────────────────────────────────────────────────
 router.post("/logout", (req, res) => {
   const isCandidate = req.session && req.session.candidate;
+  const isInterviewer = req.session && req.session.interviewer;
   req.session.destroy(() => {
+    if (isInterviewer) return res.redirect("/interviewer/login");
     res.redirect(isCandidate ? "/login/candidate" : "/login/admin");
   });
 });

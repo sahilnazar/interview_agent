@@ -11,3 +11,8 @@ export function requireCandidate(req, res, next) {
   }
   next();
 }
+
+export function requireInterviewer(req, res, next) {
+  if (req.session && req.session.interviewer) return next();
+  res.redirect("/interviewer/login");
+}

@@ -82,6 +82,49 @@ Edit `.env` with your credentials:
 npm start
 ```
 
+## Docker (App + pgvector Postgres)
+
+This repository includes a `docker-compose.yml` that starts:
+
+- `db` using `pgvector/pgvector:pg16`
+- `app` using the local `Dockerfile`
+
+### 1. Configure `.env`
+
+Use your existing database credentials, but set `PGHOST=db` for container networking:
+
+```dotenv
+PGHOST=db
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=your_password
+PGDATABASE=interview_assistant
+```
+
+### 2. Start with Compose
+
+```bash
+docker compose up --build
+```
+
+App URL:
+
+- `http://localhost:3000/admin`
+
+The application automatically runs `CREATE EXTENSION IF NOT EXISTS vector`, so pgvector is enabled on startup.
+
+### 3. Stop services
+
+```bash
+docker compose down
+```
+
+To also remove persistent volumes:
+
+```bash
+docker compose down -v
+```
+
 The server will:
 1. Validate required env vars
 2. Connect to PostgreSQL and create tables/seed settings

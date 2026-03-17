@@ -1,0 +1,13 @@
+extends layout
+
+block content
+  .page-header
+    a.back-link(href="/admin") ← Back to Admin
+    h1 Error
+  .card(style="margin-top:24px")
+    h2(style="color:#c00;font-size:20px;margin-bottom:12px") Error
+    if message
+      p(style="font-size:16px;color:#c00") #{message}
+    else
+      p(style="font-size:16px;color:#c00") An unexpected error occurred.
+    a.btn(href="/admin" style="margin-top:18px") Back to Admin Dashboard

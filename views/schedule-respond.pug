@@ -1,0 +1,39 @@
+extends layout-auth
+
+block content
+  .auth-container(style="max-width:520px")
+    .auth-card
+      .auth-logo Interview Assistant
+      if role === 'candidate'
+        h2 Interview Slot Confirmation
+      else
+        h2 Interview Confirmation Request
+
+      if error
+        .auth-error= error
+
+      .slot-info(style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;margin:20px 0")
+        p(style="font-size:12px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px") Selected Slot
+        p(style="font-size:18px;font-family:'Syne',sans-serif;font-weight:700;color:var(--accent)")
+          = new Date(si.slot_start).toLocaleString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})
+        p(style="font-size:13px;color:var(--text-muted);margin-top:4px")
+          | to #{new Date(si.slot_end).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}
+
+      if role === 'candidate'
+        p(style="font-size:13px;color:var(--text-muted);margin-bottom:20px")
+          | By clicking Confirm you are reserving this slot. The interviewer will be notified.
+        form(action=`/candidate/schedule/accept/${token}` method="POST")
+          button.btn(type="submit" name="decision" value="confirm" style="width:100%;margin-bottom:12px;background:var(--success)")
+            | ✓ Confirm This Slot
+        a.btn(href="javascript:history.back()" style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text-muted);justify-content:center;display:flex")
+          | ← Choose a Different Slot
+
+      else
+        p(style="font-size:13px;color:var(--text-muted);margin-bottom:8px") Candidate: 
+          strong= si.candidate_email
+        p(style="font-size:13px;color:var(--text-muted);margin-bottom:20px") Please confirm or decline your availability.
+        form(action=`/interviewer/confirm/${token}` method="POST" style="display:flex;gap:12px")
+          button.btn(type="submit" name="decision" value="confirm" style="flex:1;background:var(--success);justify-content:center")
+            | ✓ Confirm
+          button.btn(type="submit" name="decision" value="reject" style="flex:1;background:var(--danger);justify-content:center")
+            | ✗ Decline

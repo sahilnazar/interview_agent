@@ -1,0 +1,170 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0")
+    title Interview Assistant — My Calendar
+    link(href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet")
+    style.
+      :root {
+        --bg: #080810; --surface: #0f0f1a; --accent: #4f6ef7;
+        --accent-hover: #3b5ce4; --success: #22c55e; --danger: #ef4444;
+        --warning: #f59e0b; --text: #e2e8f0; --text-muted: #94a3b8;
+        --border: #1e293b; --radius: 10px;
+      }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'DM Mono',monospace; background:var(--bg); color:var(--text); min-height:100vh; }
+      h1,h2,h3,h4 { font-family:'Syne',sans-serif; font-weight:700; }
+      .topbar {
+        background:var(--surface); border-bottom:1px solid var(--border);
+        padding:16px 32px; display:flex; align-items:center; justify-content:space-between;
+      }
+      .topbar .logo { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; color:var(--accent); }
+      .topbar .user { font-size:13px; color:var(--text-muted); display:flex; align-items:center; gap:16px; }
+      .content { max-width:1100px; margin:0 auto; padding:40px 24px; }
+      .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:28px; margin-bottom:28px; }
+      .card h2 { margin-bottom:20px; font-size:18px; }
+      label { display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
+      input[type="text"],input[type="email"],input[type="date"],input[type="time"],input[type="datetime-local"],select {
+        width:100%; background:var(--bg); color:var(--text); border:1px solid var(--border);
+        border-radius:6px; padding:10px 14px; font-family:'DM Mono',monospace; font-size:13px;
+        margin-bottom:16px;
+      }
+      input:focus,select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(79,110,247,.25); }
+      .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; background:var(--accent);
+             color:#fff; border:none; border-radius:6px; font-family:'DM Mono',monospace; font-size:13px;
+             font-weight:500; cursor:pointer; transition:background .15s; text-decoration:none; }
+      .btn:hover { background:var(--accent-hover); }
+      .btn-sm { display:inline-flex; align-items:center; gap:4px; padding:5px 14px; border:none;
+                border-radius:5px; font-family:'DM Mono',monospace; font-size:11px; font-weight:500;
+                cursor:pointer; transition:opacity .15s; color:#fff; }
+      .btn-sm:hover { opacity:.85; }
+      .btn-danger { background:var(--danger); }
+      .btn-success { background:var(--success); }
+      .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px;
+               font-weight:500; text-transform:uppercase; letter-spacing:.3px; }
+      .badge-available { background:rgba(34,197,94,.15); color:var(--success); }
+      .badge-booked    { background:rgba(79,110,247,.15); color:var(--accent); }
+      .badge-blocked   { background:rgba(239,68,68,.15); color:var(--danger); }
+      .badge-confirmed { background:rgba(34,197,94,.15); color:var(--success); }
+      .badge-pending   { background:rgba(245,158,11,.15); color:var(--warning); }
+      .badge-cancelled { background:rgba(100,116,139,.15); color:#64748b; }
+      table { width:100%; border-collapse:collapse; font-size:13px; }
+      th { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border);
+           font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); }
+      td { padding:12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+      .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+      .checkbox-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+      .checkbox-row label { text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:6px; cursor:pointer; }
+      .checkbox-row input[type="checkbox"] { width:auto; margin:0; }
+      @media(max-width:700px) { .grid-2 { grid-template-columns:1fr; } }
+
+  body
+    .topbar
+      .logo Interview Assistant
+      .user
+        span Hi, #{interviewer.name}
+        form(action="/login/logout" method="POST")
+          button.btn-sm.btn-danger(type="submit") Logout
+
+    .content
+      .page-header(style="display:flex;align-items:center;gap:20px;margin-bottom:32px")
+        h1 My Availability Calendar
+
+      //- ── Upcoming scheduled interviews ─────────────────────────
+      .card
+        h2 Upcoming Scheduled Interviews
+        if scheduled && scheduled.length
+          table
+            thead
+              tr
+                th Candidate
+                th When
+                th Status
+                th Actions
+            tbody
+              each s in scheduled
+                tr
+                  td= s.candidate_email
+                  td= new Date(s.slot_start).toLocaleString()
+                  td
+                    - const sc = (s.status || '').toLowerCase().replace(/\s+/g,'')
+                    span(class=`badge badge-${sc}`)= s.status
+                  td
+                    if s.status === 'pending_interviewer'
+                      form(action=`/interviewer/schedule/${s.id}/respond` method="POST" style="display:inline")
+                        input(type="hidden" name="decision" value="confirm")
+                        button.btn-sm.btn-success(type="submit") ✓ Confirm
+                      form(action=`/interviewer/schedule/${s.id}/respond` method="POST" style="display:inline;margin-left:6px")
+                        input(type="hidden" name="decision" value="reject")
+                        button.btn-sm.btn-danger(type="submit") ✗ Decline
+        else
+          p(style="color:var(--text-muted);padding:20px 0;text-align:center") No scheduled interviews yet.
+
+      //- ── Availability slots ──────────────────────────────────────
+      .grid-2
+        .card
+          h2 My Available Slots
+          if slots && slots.length
+            table
+              thead
+                tr
+                  th When
+                  th Duration
+                  th Status
+                  th
+              tbody
+                each s in slots
+                  - const dur = Math.round((new Date(s.slot_end) - new Date(s.slot_start)) / 60000)
+                  tr
+                    td= new Date(s.slot_start).toLocaleString()
+                    td= dur + ' min'
+                    td
+                      span(class=`badge badge-${s.status}`)= s.status
+                    td
+                      if s.status === 'available'
+                        form(action=`/interviewer/calendar/slots/${s.id}/delete` method="POST" style="display:inline")
+                          button.btn-sm.btn-danger(type="submit" onclick="return confirm('Remove this slot?')") ✕
+          else
+            p(style="color:var(--text-muted);font-size:13px;padding:12px 0") No upcoming slots. Add some below.
+
+        div
+          //- ── Add single slot ─────────────────────────────────────
+          .card
+            h2 Add a Slot
+            form(action="/interviewer/calendar/slots" method="POST")
+              label Start
+              input(type="datetime-local" name="slot_start" required)
+              label End
+              input(type="datetime-local" name="slot_end" required)
+              label Slot Type
+              select(name="status")
+                option(value="available") Available
+                option(value="blocked") Blocked (Not Available)
+              button.btn(type="submit") + Add Slot
+
+          //- ── Bulk-add recurring slots ────────────────────────────
+          .card
+            h2 Add Recurring Slots
+            form(action="/interviewer/calendar/slots/bulk" method="POST")
+              .grid-2(style="gap:12px")
+                div
+                  label From Date
+                  input(type="date" name="from_date" required)
+                div
+                  label To Date
+                  input(type="date" name="to_date" required)
+              label Days of Week
+              .checkbox-row
+                each day, idx in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                  label
+                    input(type="checkbox" name="days" value=idx)
+                    | #{day}
+              .grid-2(style="gap:12px")
+                div
+                  label Slot Start Time
+                  input(type="time" name="slot_time_start" required value="09:00")
+                div
+                  label Slot End Time
+                  input(type="time" name="slot_time_end" required value="10:00")
+              button.btn(type="submit") + Add Recurring Slots

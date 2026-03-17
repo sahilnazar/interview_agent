@@ -231,6 +231,89 @@ export async function initDB() {
     console.warn("Could not create jd_chunks table (pgvector may not be installed):", err.message);
   }
 
+  // ── Interviewers table ────────────────────────────────────────────────
+  await query(`
+    CREATE TABLE IF NOT EXISTS interviewers (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name       TEXT NOT NULL,
+      email      TEXT UNIQUE NOT NULL,
+      department TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // ── Interviewer <-> Interview assignment ─────────────────────────────
+  await query(`
+    CREATE TABLE IF NOT EXISTS interview_interviewers (
+      interview_id  UUID NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
+      interviewer_id UUID NOT NULL REFERENCES interviewers(id) ON DELETE CASCADE,
+      PRIMARY KEY (interview_id, interviewer_id)
+    )
+  `);
+
+  // ── Interviewer availability slots ───────────────────────────────────
+  await query(`
+    CREATE TABLE IF NOT EXISTS interviewer_slots (
+      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      interviewer_id UUID NOT NULL REFERENCES interviewers(id) ON DELETE CASCADE,
+      slot_start     TIMESTAMPTZ NOT NULL,
+      slot_end       TIMESTAMPTZ NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'available',  -- available | booked | blocked
+      created_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_slots_interviewer ON interviewer_slots(interviewer_id)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_slots_start ON interviewer_slots(slot_start)
+  `);
+
+  // ── OTP tokens for interviewer login ─────────────────────────────────
+  await query(`
+    CREATE TABLE IF NOT EXISTS interviewer_otps (
+      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      interviewer_id UUID NOT NULL REFERENCES interviewers(id) ON DELETE CASCADE,
+      otp_code       TEXT NOT NULL,
+      expires_at     TIMESTAMPTZ NOT NULL,
+      used           BOOLEAN NOT NULL DEFAULT FALSE
+    )
+  `);
+
+  // ── Scheduled interview sessions ─────────────────────────────────────
+  await query(`
+    CREATE TABLE IF NOT EXISTS scheduled_interviews (
+      id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      candidate_id     TEXT NOT NULL REFERENCES candidates(thread_id) ON DELETE CASCADE,
+      interviewer_id   UUID NOT NULL REFERENCES interviewers(id) ON DELETE CASCADE,
+      slot_id          UUID REFERENCES interviewer_slots(id),
+      slot_start       TIMESTAMPTZ NOT NULL,
+      slot_end         TIMESTAMPTZ NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'pending_candidate',
+      -- pending_candidate | pending_interviewer | confirmed | rejected_candidate
+      -- | rejected_interviewer | cancelled
+      candidate_token  TEXT UNIQUE,
+      interviewer_token TEXT UNIQUE,
+      meet_link        TEXT,
+      notes            TEXT,
+      created_at       TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_candidate ON scheduled_interviews(candidate_id)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_interviewer ON scheduled_interviews(interviewer_id)
+  `);
+
+  // ── Migration: add scheduled_at to candidates ────────────────────────
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS scheduled_interview_id UUID;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+
   console.log("Database schema initialized");
 }
 
