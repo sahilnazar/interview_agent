@@ -10,7 +10,7 @@ async function getSettings() {
   for (const r of res.rows) map[r.key] = r.value;
   return {
     provider: map.embedding_provider || "ollama",
-    ollamaUrl: map.ollama_base_url || "http://localhost:11434",
+    ollamaUrl: map.ollama_base_url || process.env.OLLAMA_BASE_URL || "http://localhost:11434",
   };
 }
 

@@ -30,6 +30,41 @@ block content
         toggle();
       })();
 
+  //- ── Email Ingestion (IMAP) Settings ───────────────────
+  .card
+    h2 Email Ingestion (IMAP)
+    p(style="color:var(--text-muted);font-size:13px;margin-bottom:16px") Automatically fetch resume attachments from an email inbox and assign them to the best-matching interview.
+    form(action="/admin/settings/imap" method="POST")
+      .input-row
+        div
+          label
+            input(type="checkbox" name="imap_enabled" checked=(settings.imap_enabled === 'true') style="margin-right:8px")
+            | Enable Email Ingestion
+      .input-row
+        div
+          label IMAP Host
+          input(type="text" name="imap_host" value=(settings.imap_host || '') placeholder="imap.gmail.com")
+        div
+          label IMAP Port
+          input(type="number" name="imap_port" value=(settings.imap_port || '993') placeholder="993" style="width:100px")
+      .input-row
+        div
+          label Email Address
+          input(type="text" name="imap_user" value=(settings.imap_user || '') placeholder="hiring@company.com")
+        div
+          label App Password
+          input(type="password" name="imap_password" value=(settings.imap_password || '') placeholder="App password")
+      .input-row
+        div
+          label Poll Interval (seconds)
+          input(type="number" name="imap_poll_interval" value=(settings.imap_poll_interval || '60') min="10" placeholder="60" style="width:120px")
+        div
+          label Folder
+          input(type="text" name="imap_folder" value=(settings.imap_folder || 'INBOX') placeholder="INBOX" style="width:160px")
+      if settings.imap_last_poll
+        p(style="color:var(--text-muted);margin-top:8px;font-size:13px") Last polled: #{new Date(settings.imap_last_poll).toLocaleString()}
+      button.btn(type="submit" style="margin-top:12px") Save IMAP Settings
+
   if interviews && interviews.length
     .interview-grid
       each i in interviews
