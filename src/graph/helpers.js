@@ -44,7 +44,7 @@ export function getGroqModel() {
   });
 }
 
-/** Gemini model for multimodal (video) analysis. */
+/** Gemini model tuned for lower-cost free-tier usage. */
 export function getGeminiModel() {
-  return new ChatGoogleGenerativeAI({ model: "gemini-2.5-pro", temperature: 0 });
+  return new ChatGoogleGenerativeAI({ model: "gemini-2.5-flash", temperature: 0 });
 }

@@ -5,12 +5,13 @@ import { query } from "../config/db.js";
 // ─── Provider helpers ────────────────────────────────────────────────────
 
 async function getSettings() {
-  const res = await query("SELECT key, value FROM settings WHERE key IN ('embedding_provider', 'ollama_base_url')");
+  const res = await query("SELECT key, value FROM settings WHERE key IN ('embedding_provider', 'ollama_base_url', 'pgvector_available')");
   const map = {};
   for (const r of res.rows) map[r.key] = r.value;
   return {
     provider: map.embedding_provider || "ollama",
     ollamaUrl: map.ollama_base_url || process.env.OLLAMA_BASE_URL || "http://localhost:11434",
+    pgvector: map.pgvector_available === 'true',
   };
 }
 
@@ -69,7 +70,7 @@ export function getEmbedStatus(interviewId) {
 export async function storeJDChunks(interviewId, jdText) {
   if (!jdText || !jdText.trim()) return;
 
-  const { provider } = await getSettings();
+  const { provider, pgvector } = await getSettings();
   if (provider === "openai" && !process.env.OPENAI_API_KEY) {
     embedJobs.set(interviewId, { status: 'error', logs: ['OPENAI_API_KEY not set — skipping JD embedding'] });
     return;
@@ -79,7 +80,6 @@ export async function storeJDChunks(interviewId, jdText) {
   embedJobs.set(interviewId, job);
 
   try {
-    // Remove old chunks (may have different dimension from previous provider)
     await query("DELETE FROM jd_chunks WHERE interview_id = $1", [interviewId]);
     job.logs.push('Cleared old chunks');
 
@@ -90,11 +90,19 @@ export async function storeJDChunks(interviewId, jdText) {
       job.logs.push(`Embedding chunk ${i + 1}/${chunks.length}...`);
       const embedding = await embedText(chunks[i]);
       if (!embedding) { job.logs.push(`Chunk ${i + 1} returned null — skipped`); continue; }
-      const pgVector = `[${embedding.join(",")}]`;
-      await query(
-        "INSERT INTO jd_chunks (interview_id, chunk_text, embedding) VALUES ($1, $2, $3::vector)",
-        [interviewId, chunks[i], pgVector]
-      );
+
+      if (pgvector) {
+        const pgVector = `[${embedding.join(",")}]`;
+        await query(
+          "INSERT INTO jd_chunks (interview_id, chunk_text, embedding) VALUES ($1, $2, $3::vector)",
+          [interviewId, chunks[i], pgVector]
+        );
+      } else {
+        await query(
+          "INSERT INTO jd_chunks (interview_id, chunk_text, embedding) VALUES ($1, $2, $3::jsonb)",
+          [interviewId, chunks[i], JSON.stringify(embedding)]
+        );
+      }
       job.logs.push(`Chunk ${i + 1}/${chunks.length} stored (${embedding.length}-d)`);
     }
 
@@ -109,21 +117,48 @@ export async function storeJDChunks(interviewId, jdText) {
 }
 
 export async function retrieveRelevantChunks(interviewId, queryText, topK = 5) {
-  const { provider } = await getSettings();
+  const { provider, pgvector } = await getSettings();
   if (provider === "openai" && !process.env.OPENAI_API_KEY) return [];
 
   const embedding = await embedText(queryText);
   if (!embedding) return [];
-  const pgVector = `[${embedding.join(",")}]`;
 
-  const result = await query(
-    `SELECT chunk_text, 1 - (embedding <=> $1::vector) AS similarity
-     FROM jd_chunks
-     WHERE interview_id = $2
-     ORDER BY embedding <=> $1::vector
-     LIMIT $3`,
-    [pgVector, interviewId, topK]
-  );
+  if (pgvector) {
+    const pgVector = `[${embedding.join(",")}]`;
+    const result = await query(
+      `SELECT chunk_text, 1 - (embedding <=> $1::vector) AS similarity
+       FROM jd_chunks
+       WHERE interview_id = $2
+       ORDER BY embedding <=> $1::vector
+       LIMIT $3`,
+      [pgVector, interviewId, topK]
+    );
+    return result.rows.map((r) => r.chunk_text);
+  } else {
+    // JSONB fallback — load all chunks and use JS cosine similarity
+    const result = await query(
+      "SELECT chunk_text, embedding FROM jd_chunks WHERE interview_id = $1",
+      [interviewId]
+    );
+    if (!result.rows.length) return [];
 
-  return result.rows.map((r) => r.chunk_text);
+    function cosineSimilarity(a, b) {
+      let dot = 0, normA = 0, normB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+      }
+      return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    return result.rows
+      .map((r) => ({
+        chunk_text: r.chunk_text,
+        similarity: cosineSimilarity(embedding, r.embedding),
+      }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, topK)
+      .map((r) => r.chunk_text);
+  }
 }

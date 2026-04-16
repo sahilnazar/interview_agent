@@ -16,25 +16,26 @@ const router = Router();
 
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 
+function normalizeVideoMime(mime) {
+  return (mime || "").split(";")[0].trim().toLowerCase();
+}
+function isAllowedVideo(mime) {
+  return ALLOWED_VIDEO_TYPES.has(normalizeVideoMime(mime));
+}
+
 const videoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".mp4";
+    const mimeToExt = { "video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov" };
+    const ext = mimeToExt[normalizeVideoMime(file.mimetype)] || path.extname(file.originalname) || ".webm";
     cb(null, `${req.params.threadId}-${Date.now()}${ext}`);
   },
 });
 
 const videoUpload = multer({
   storage: videoStorage,
-  fileFilter: (_req, file, cb) => {
-    if (ALLOWED_VIDEO_TYPES.has(file.mimetype)) {
-      cb(null, true);
-    } else {
-      const err = new Error("Only MP4, WebM, and QuickTime videos are accepted");
-      err.status = 415;
-      cb(err, false);
-    }
-  },
+  // Accept all — validate MIME after body is consumed (avoids ERR_CONNECTION_RESET)
+  fileFilter: (_req, _file, cb) => cb(null, true),
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
@@ -67,20 +68,25 @@ router.post("/:threadId", (req, res, next) => {
         if (multerErr.code === "LIMIT_FILE_SIZE") {
           return res.status(413).json({ error: "File too large — 200 MB maximum" });
         }
-        if (multerErr.status === 415 || multerErr.message?.includes("Only MP4")) {
-          return res.status(415).json({ error: multerErr.message });
-        }
         return res.status(400).json({ error: multerErr.message });
+      }
+
+      if (!req.file) return res.status(400).json({ error: "No video file provided" });
+
+      // MIME validation after body is consumed (prevents ERR_CONNECTION_RESET)
+      if (!isAllowedVideo(req.file.mimetype)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+        return res.status(415).json({ error: "Only MP4, WebM, and QuickTime videos are accepted" });
       }
 
       const result = await query("SELECT status FROM candidates WHERE thread_id = $1", [threadId]);
       if (!result.rows.length) return res.status(404).json({ error: "Not found" });
-      if (result.rows[0].status !== "AwaitingVideo") {
+      if (!["AwaitingVideo", "Screening"].includes(result.rows[0].status)) {
         return res.status(409).json({ error: "Submission already received or link expired" });
       }
-      if (!req.file) return res.status(400).json({ error: "No video file provided" });
 
       const videoPath = req.file.path;
+      await query("UPDATE candidates SET video_path = $1, status = 'VideoReceived' WHERE thread_id = $2", [videoPath, threadId]);
 
       analyzeVideoForCandidate(threadId, videoPath)
         .then((r) => console.log(`Video analysis complete for ${threadId}:`, r))

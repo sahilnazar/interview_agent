@@ -58,3 +58,9 @@ block content
         p
           span.status-label Communication Score: 
           span.score= candidate.english_score.toFixed(1)
+      if candidate.confidence_score != null
+        p
+          span.status-label Confidence Score: 
+          span.score= candidate.confidence_score.toFixed(1)
+      if candidate.video_summary
+        p(style="margin-top:12px;color:var(--text-muted);font-size:13px")= candidate.video_summary

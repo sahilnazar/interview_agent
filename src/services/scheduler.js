@@ -20,6 +20,9 @@ import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
 
 const BASE_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+const AUTO_SCHEDULE_INTERVAL_MS = parseInt(process.env.AUTO_SCHEDULE_INTERVAL_MS || "180000", 10);
+let autoScheduleTimer = null;
+let autoScheduleRunning = false;
 
 // ─── Utility ──────────────────────────────────────────────────────────────
 
@@ -39,6 +42,54 @@ function generateToken() {
   return crypto.randomBytes(24).toString("hex");
 }
 
+function normalizeSkillText(value = "") {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9+#.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseSkillList(value = "") {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeSkillText(item))
+      .filter(Boolean);
+  }
+  return String(value)
+    .split(/[\n,;/|]/)
+    .map((item) => normalizeSkillText(item))
+    .filter(Boolean);
+}
+
+function toUnique(list = []) {
+  return [...new Set(list.filter(Boolean))];
+}
+
+function computeInterviewerMatchPercent(interviewerSkills = [], jobSkills = [], candidateSkills = []) {
+  const iSkills = toUnique(interviewerSkills);
+  if (!iSkills.length) return 0;
+
+  const jSkills = toUnique(jobSkills);
+  const cSkills = toUnique(candidateSkills);
+
+  const jobMatched = jSkills.length
+    ? jSkills.filter((skill) => iSkills.includes(skill)).length / jSkills.length
+    : 0;
+
+  const candidateMatched = cSkills.length
+    ? cSkills.filter((skill) => iSkills.includes(skill)).length / cSkills.length
+    : 0;
+
+  if (jSkills.length && cSkills.length) {
+    return Math.round(((jobMatched + candidateMatched) / 2) * 100);
+  }
+  if (jSkills.length) return Math.round(jobMatched * 100);
+  if (cSkills.length) return Math.round(candidateMatched * 100);
+  return 0;
+}
+
 // ─── Core scheduling ──────────────────────────────────────────────────────
 
 /**
@@ -47,18 +98,50 @@ function generateToken() {
  * at least one of them is available (one-on-one scheduling).
  */
 export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
-  // Get all interviewers assigned to this interview
-  const intAssign = await query(
-    `SELECT i.id, i.name, i.email
-     FROM interview_interviewers ii
-     JOIN interviewers i ON i.id = ii.interviewer_id
-     WHERE ii.interview_id = $1`,
-    [interviewId],
+  const contextResult = await query(
+    `SELECT c.skills AS candidate_skills, i.required_skills, i.jd
+     FROM candidates c
+     JOIN interviews i ON i.id = c.interview_id
+     WHERE c.thread_id = $1
+     LIMIT 1`,
+    [candidateId],
   );
 
-  if (!intAssign.rows.length) return [];
+  const context = contextResult.rows[0] || {};
+  const candidateSkillsRaw = Array.isArray(context.candidate_skills)
+    ? context.candidate_skills
+    : [];
+  const candidateSkills = parseSkillList(candidateSkillsRaw);
+  const jobSkills = toUnique([
+    ...parseSkillList(context.required_skills || ""),
+    ...parseSkillList(context.jd || ""),
+  ]);
 
-  const interviewerIds = intAssign.rows.map((r) => r.id);
+  // Get all interviewers who have at least one future available slot.
+  // Skill matching now drives priority instead of fixed interview assignment.
+  const availableInterviewers = await query(
+    `SELECT DISTINCT i.id, i.name, i.email, i.skills
+     FROM interviewers i
+     JOIN interviewer_slots s ON s.interviewer_id = i.id
+     WHERE s.status = 'available'
+       AND s.slot_start > NOW()`
+  );
+
+  if (!availableInterviewers.rows.length) return [];
+
+  const scoreByInterviewer = new Map(
+    availableInterviewers.rows.map((r) => {
+      const interviewerSkills = parseSkillList(r.skills || "");
+      const matchPercent = computeInterviewerMatchPercent(
+        interviewerSkills,
+        jobSkills,
+        candidateSkills,
+      );
+      return [r.id, matchPercent];
+    }),
+  );
+
+  const interviewerIds = availableInterviewers.rows.map((r) => r.id);
 
   // Get available (not booked/blocked) future slots
   const slotsResult = await query(
@@ -80,13 +163,39 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
 
   if (!slotsResult.rows.length) return [];
 
+  // First priority: skill match > 50%. Second priority: everyone else.
+  // If no first-priority slots are currently available, fall back to any available interviewer.
+  const rankedSlots = slotsResult.rows.map((slot) => {
+    const matchPercent = scoreByInterviewer.get(slot.interviewer_id) || 0;
+    return {
+      ...slot,
+      interviewer_match_percent: matchPercent,
+      interviewer_priority: matchPercent > 50 ? 1 : 2,
+    };
+  });
+
+  const firstPrioritySlots = rankedSlots
+    .filter((slot) => slot.interviewer_priority === 1)
+    .sort((a, b) => new Date(a.slot_start) - new Date(b.slot_start));
+
+  const secondPrioritySlots = rankedSlots
+    .filter((slot) => slot.interviewer_priority === 2)
+    .sort((a, b) => new Date(a.slot_start) - new Date(b.slot_start));
+
+  const prioritizedSlots = firstPrioritySlots.length
+    ? [...firstPrioritySlots, ...secondPrioritySlots]
+    : rankedSlots.sort((a, b) => new Date(a.slot_start) - new Date(b.slot_start));
+
   // If only a few slots, just return them
-  if (slotsResult.rows.length <= limit) return slotsResult.rows;
+  if (prioritizedSlots.length <= limit) return prioritizedSlots;
+
+  // With single-slot scheduling, deterministic priority ordering is preferred over LLM ranking.
+  if (limit === 1) return prioritizedSlots.slice(0, limit);
 
   // LLM-rank: ask Groq to pick the best N spread-out slots
   try {
     const model = getGroqModel();
-    const slotList = slotsResult.rows
+    const slotList = prioritizedSlots
       .map(
         (s, i) =>
           `${i + 1}. ${fmt(s.slot_start)} – ${fmt(s.slot_end)} (${s.interviewer_name})`,
@@ -107,15 +216,15 @@ ${slotList}`;
     if (raw) {
       const indices = JSON.parse(raw)
         .map((n) => n - 1)
-        .filter((n) => n >= 0 && n < slotsResult.rows.length);
+        .filter((n) => n >= 0 && n < prioritizedSlots.length);
       if (indices.length)
-        return indices.map((i) => slotsResult.rows[i]).slice(0, limit);
+        return indices.map((i) => prioritizedSlots[i]).slice(0, limit);
     }
   } catch {
     // fall through to chronological
   }
 
-  return slotsResult.rows.slice(0, limit);
+  return prioritizedSlots.slice(0, limit);
 }
 
 /**
@@ -132,7 +241,7 @@ export async function scheduleCandidate(candidateId, interviewId) {
   if (!candidateResult.rows.length) throw new Error("Candidate not found");
   const candidate = candidateResult.rows[0];
 
-  const slots = await findAvailableSlots(interviewId, candidateId, 5);
+  const slots = await findAvailableSlots(interviewId, candidateId, 1);
   if (!slots.length) {
     console.warn(
       `scheduleCandidate: No available slots for interview ${interviewId}`,
@@ -140,7 +249,7 @@ export async function scheduleCandidate(candidateId, interviewId) {
     return { scheduled: false, reason: "no_slots" };
   }
 
-  // Create one pending row per slot option
+  // Create one pending row for the single next available slot
   const created = [];
   for (const slot of slots) {
     const candidateToken = generateToken();
@@ -177,6 +286,132 @@ export async function scheduleCandidate(candidateId, interviewId) {
   return { scheduled: true, slotCount: created.length };
 }
 
+/**
+ * Fully automated scheduling for passed candidates:
+ * - interviewer must be assigned to the interview
+ * - slot must be available
+ * - first suitable slot is auto-confirmed
+ * - candidate + interviewer get confirmation emails with meet link and slot
+ */
+export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
+  const existing = await query(
+    `SELECT si.id
+     FROM scheduled_interviews si
+     WHERE si.candidate_id = $1
+       AND si.status NOT IN ('rejected_interviewer', 'rejected_candidate', 'cancelled')
+     ORDER BY si.created_at DESC
+     LIMIT 1`,
+    [candidateId],
+  );
+  if (existing.rows.length) {
+    return { scheduled: true, alreadyScheduled: true, scheduledId: existing.rows[0].id };
+  }
+
+  const candidateResult = await query(
+    "SELECT email FROM candidates WHERE thread_id = $1",
+    [candidateId],
+  );
+  if (!candidateResult.rows.length) throw new Error("Candidate not found");
+
+  const slots = await findAvailableSlots(interviewId, candidateId, 1);
+  if (!slots.length) {
+    return { scheduled: false, reason: "no_slots" };
+  }
+
+  const slot = slots[0];
+  const candidateToken = generateToken();
+  const interviewerToken = generateToken();
+  const meetLink = "https://meet.google.com/new";
+
+  const ins = await query(
+    `INSERT INTO scheduled_interviews
+       (candidate_id, interviewer_id, slot_id, slot_start, slot_end,
+        status, candidate_token, interviewer_token, meet_link)
+     VALUES ($1, $2, $3, $4, $5, 'confirmed', $6, $7, $8)
+     RETURNING id`,
+    [
+      candidateId,
+      slot.interviewer_id,
+      slot.id,
+      slot.slot_start,
+      slot.slot_end,
+      candidateToken,
+      interviewerToken,
+      meetLink,
+    ],
+  );
+
+  await query(
+    "UPDATE interviewer_slots SET status = 'booked' WHERE id = $1",
+    [slot.id],
+  );
+
+  await sendScheduleConfirmedEmails(ins.rows[0].id);
+
+  return {
+    scheduled: true,
+    scheduledId: ins.rows[0].id,
+    interviewerId: slot.interviewer_id,
+    slotStart: slot.slot_start,
+    slotEnd: slot.slot_end,
+  };
+}
+
+async function runAutoScheduleTick() {
+  if (autoScheduleRunning) return;
+  autoScheduleRunning = true;
+  try {
+    const pending = await query(
+      `SELECT thread_id, interview_id
+       FROM candidates
+       WHERE status = 'Done'
+         AND interview_id IS NOT NULL
+         AND scheduled_interview_id IS NULL
+       ORDER BY created_at ASC
+       LIMIT 50`,
+    );
+
+    for (const candidate of pending.rows) {
+      try {
+        const result = await autoAssignAndConfirmCandidate(
+          candidate.thread_id,
+          candidate.interview_id,
+        );
+        if (result?.scheduled && !result?.alreadyScheduled) {
+          console.log(
+            `[AutoSchedule] Candidate ${candidate.thread_id} auto-assigned (scheduledId=${result.scheduledId})`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[AutoSchedule] Failed for ${candidate.thread_id}:`,
+          err.message || err,
+        );
+      }
+    }
+  } finally {
+    autoScheduleRunning = false;
+  }
+}
+
+export function startAutoSchedulePassedCandidates(intervalMs = AUTO_SCHEDULE_INTERVAL_MS) {
+  if (autoScheduleTimer) return autoScheduleTimer;
+
+  // Initial run at startup so newly passed candidates are picked quickly.
+  runAutoScheduleTick().catch((err) => {
+    console.error("[AutoSchedule] Initial tick failed:", err.message || err);
+  });
+
+  autoScheduleTimer = setInterval(() => {
+    runAutoScheduleTick().catch((err) => {
+      console.error("[AutoSchedule] Tick failed:", err.message || err);
+    });
+  }, intervalMs);
+
+  console.log(`[AutoSchedule] Worker started (interval=${intervalMs}ms)`);
+  return autoScheduleTimer;
+}
+
 // ─── Email helpers ────────────────────────────────────────────────────────
 
 export async function sendCandidateSlotEmail(email, candidateId, slots) {
@@ -190,7 +425,7 @@ export async function sendCandidateSlotEmail(email, candidateId, slots) {
       <td style="padding:12px 16px;border-bottom:1px solid #1e293b;text-align:right">
         <a href="${BASE_URL}/candidate/schedule/accept/${s.candidateToken}"
            style="background:#4f6ef7;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:13px">
-          Choose this slot
+          Confirm slot
         </a>
       </td>
     </tr>`,
@@ -199,15 +434,15 @@ export async function sendCandidateSlotEmail(email, candidateId, slots) {
 
   await sendEmail(
     email,
-    "Interview Scheduling — Please Choose a Time Slot",
+    "Interview Scheduling — Your Interview Slot",
     `<div style="font-family:sans-serif;max-width:640px">
-      <h2>Please choose an interview slot</h2>
-      <p>Great news! We'd like to schedule your interview. Please pick a time that works for you:</p>
+      <h2>Your interview slot is ready</h2>
+      <p>Great news! We've reserved the next available slot for your interview:</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#0f0f1a;border-radius:8px;overflow:hidden">
         ${slotOptions}
       </table>
       <p style="color:#94a3b8;font-size:12px">
-        If none of these times work, please contact us and we'll find an alternative.
+        Click the button above to confirm this slot. If you have any issues, please contact us.
       </p>
     </div>`,
   );
@@ -288,6 +523,7 @@ export async function sendScheduleConfirmedEmails(scheduledId) {
             : ""
         }
       </table>
+      <p style="margin-top:8px">Please ensure you attend the interview on time.</p>
       <p style="color:#94a3b8;font-size:12px">Please add this to your calendar.</p>
     </div>`;
 

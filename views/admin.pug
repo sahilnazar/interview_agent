@@ -3,9 +3,21 @@ extends layout
 block content
   .page-header
     h1 Interviews
-    form.inline-form(action="/admin/interviews" method="POST")
-      input(type="text" name="title" placeholder="New interview title…" required style="margin-bottom:0;width:300px")
-      button.btn(type="submit") + Create
+
+  .card
+    h2 Create Interview
+    form(action="/admin/interviews" method="POST")
+      .input-row
+        div
+          label Interview Title
+          input(type="text" name="title" placeholder="Frontend Developer" required style="margin-bottom:0")
+        div
+          label Required Skills
+          input(type="text" name="requiredSkills" placeholder="React, Node.js, PostgreSQL" style="margin-bottom:0")
+        div
+          label Salary Range
+          input(type="text" name="salaryRange" placeholder="6-8 LPA or $60k-$80k" style="margin-bottom:0")
+      button.btn(type="submit" style="margin-top:12px") + Create Interview
 
   //- ── Embedding Settings ─────────────────────────────────
   .card

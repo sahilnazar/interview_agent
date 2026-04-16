@@ -5,57 +5,16 @@ block content
     a.back-link(href="/admin") ← All Interviews
     h1= interview.title
 
-  //- ── Interviewer Panel ───────────────────────────────────
-  .card
-    .card-header-row
-      h2 Assigned Interviewers
-      a.btn-sm.btn-invite(href="/admin/interviewers" style="font-size:12px;padding:6px 14px") Manage All →
-    if assignedInterviewers && assignedInterviewers.length
-      table(style="margin-bottom:16px")
-        thead
-          tr
-            th Name
-            th Email
-            th Department
-            th Avail. Slots
-            th
-        tbody
-          each iv in assignedInterviewers
-            tr
-              td= iv.name
-              td= iv.email
-              td= iv.department || '—'
-              td= iv.available_slots || 0
-              td
-                form(action=`/admin/interviewers/${iv.id}/unassign/${interview.id}` method="POST" style="display:inline")
-                  button.btn-sm.btn-delete(type="submit") − Remove
-    else
-      p(style="color:var(--text-muted);font-size:13px;margin-bottom:16px") No interviewers assigned yet.
-    if allInterviewers && allInterviewers.length
-      form(id="assign-form" method="POST" action="/admin/interviewers/" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap" onsubmit="return setAssignAction(event)")
-        input(type="hidden" name="interviewerId" id="assign-interviewer-id")
-        select#assign-sel(name="interviewerId" style="margin-bottom:0;width:auto;min-width:220px" required)
-          option(value="") — select interviewer —
-          each iv in allInterviewers
-            option(value=iv.id)= iv.name + ' <' + iv.email + '>'
-        button.btn(type="submit" style="margin-bottom:0") + Assign
-      script.
-        function setAssignAction(e) {
-          var sel = document.getElementById('assign-sel');
-          var form = document.getElementById('assign-form');
-          var interviewerId = sel.value;
-          if (!interviewerId) return false;
-          // Use the actual interview id from the server
-          var interviewId = !window.__interviewId ? (typeof interview !== 'undefined' ? interview.id : null) : window.__interviewId;
-          if (!interviewId) interviewId = '#{interview.id}';
-          form.action = '/admin/interviewers/' + interviewerId + '/assign/' + interviewId;
-          return true;
-        }
-
   //- ── Settings Panel ──────────────────────────────────────
   .card
     h2 Interview Settings
     form(action=`/admin/interviews/${interview.id}/settings` method="POST")
+      label Required Skills (comma separated)
+      textarea(name="requiredSkills" rows="3")= interview.required_skills
+
+      label Salary Range / Expectation
+      input(type="text" name="salaryRange" value=interview.salary_range placeholder="6-8 LPA or $60k-$80k")
+
       label Job Description
       textarea(name="jd" rows="6")= interview.jd
 
@@ -105,22 +64,42 @@ block content
           tr
             th Email
             th Status
+            th Video
             th Assigned
             th Resume Score
             th English Score
             th Skills
+            th Salary Exp.
             th Created
             th Actions
         tbody#candidates-body
           each c in candidates
-            - const parsed = c.summary ? JSON.parse(c.summary) : null
+            - let parsed = null
+            - try { parsed = c.summary ? JSON.parse(c.summary) : null; } catch (e) { parsed = c.summary ? { summary: c.summary, matching: [], missing: [] } : null; }
+            - const hasDetails = !!(parsed || c.video_summary || c.salary_expectation)
+            - const videoStatus = c.video_path ? (c.status === 'Done' ? 'Analyzed' : c.status === 'Error' ? 'Analyze Failed' : c.status === 'Rejected' ? 'Mismatch' : 'Submitted') : (c.status === 'VideoReceived' ? 'Processing' : '—')
+            - const displayStatus = c.status === 'Done' ? (c.english_score != null ? `Passed ${c.english_score.toFixed(0)}%` : 'Passed') : c.status === 'Rejected' && c.video_summary ? 'Failed Match' : c.status === 'Error' ? 'Analysis Error' : c.status
             tr
               td= c.email
               td
-                - const s = (c.status || '').toLowerCase().replace(/\s+/g,'')
-                span(class=`badge badge-${s}`)= c.status
+                - const s = c.status === 'Done' ? 'done' : c.status === 'Error' ? 'error' : (c.status || '').toLowerCase().replace(/\s+/g,'')
+                span(class=`badge badge-${s}`)= displayStatus
                 if c.status === 'Rejected' && c.rejection_sent
                   span.badge-sent(title="Rejection email sent") ✉
+                if hasDetails
+                  div(style="margin-top:8px")
+                    button.summary-toggle(type="button" data-target=`summary-${c.thread_id}`) ▶ Details
+              td
+                if videoStatus === 'Submitted' || videoStatus === 'Processing'
+                  span(style="color:var(--warning);font-size:12px") ⏳ #{videoStatus}
+                else if videoStatus === 'Analyzed'
+                  span(style="color:var(--success);font-size:12px") ✔ Analyzed
+                else if videoStatus === 'Mismatch'
+                  span(style="color:var(--danger);font-size:12px") ✖ Mismatch
+                else if videoStatus === 'Analyze Failed'
+                  span(style="color:var(--danger);font-size:12px") ✖ Failed
+                else
+                  span(style="color:var(--text-muted);font-size:12px") —
               td
                 if c.assignment_method === 'auto'
                   span.badge.badge-auto(title=`Auto-assigned with ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : '?'} confidence`) Auto #{c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}
@@ -134,10 +113,12 @@ block content
                     span.skill-chip= sk
                 else
                   | —
+              td= c.salary_expectation || '—'
               td= c.created_at ? new Date(c.created_at).toLocaleString() : ''
               td.actions-cell
-                if parsed
-                  button.summary-toggle(type="button" onclick=`toggleSummary('${c.thread_id}')`) ▶ Summary
+                if c.status === 'Error'
+                  form(action=`/admin/interviews/${interview.id}/retry-analysis/${c.thread_id}` method="POST" style="display:inline")
+                    button.btn-sm(type="submit" style="background:#f59e0b;color:#000") ↻ Retry
                 if c.status === 'Rejected'
                   form(action=`/admin/interviews/${interview.id}/reselect/${c.thread_id}` method="POST" style="display:inline")
                     button.btn-sm.btn-invite(type="submit") ↩ Re-select
@@ -149,19 +130,39 @@ block content
                     button.btn-sm.btn-reject(type="submit") ✗ Reject
                 form(action=`/admin/interviews/${interview.id}/delete/${c.thread_id}` method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')")
                   button.btn-sm.btn-delete(type="submit") ✕ Delete
-            if parsed
+            if parsed || c.video_summary || c.salary_expectation
               tr.summary-row(id=`summary-${c.thread_id}` style="display:none")
-                td(colspan="8")
+                td(colspan="10")
                   .summary-box
-                    p= parsed.summary
-                    h4 ✓ Matching
-                    div
-                      each m in (parsed.matching || [])
-                        span.match-chip= m
-                    h4(style="margin-top:10px") ✗ Missing
-                    div
-                      each m in (parsed.missing || [])
-                        span.miss-chip= m
+                    if c.video_summary
+                      h4 Video Analysis
+                      p= c.video_summary
+                    p(style="margin-top:8px")
+                      strong Salary Expectation:
+                      |  #{c.salary_expectation || 'Not mentioned'}
+                    if c.confidence_score != null
+                      p
+                        strong Confidence Score:
+                        |  #{c.confidence_score.toFixed(1)}
+                    if interview.required_skills
+                      p
+                        strong Required Skills:
+                        |  #{interview.required_skills}
+                    if interview.salary_range
+                      p
+                        strong Role Salary Range:
+                        |  #{interview.salary_range}
+                    if parsed
+                      h4(style="margin-top:10px") Resume Summary
+                      p= parsed.summary
+                      h4 ✓ Matching
+                      div
+                        each m in (parsed.matching || [])
+                          span.match-chip= m
+                      h4(style="margin-top:10px") ✗ Missing
+                      div
+                        each m in (parsed.missing || [])
+                          span.miss-chip= m
 
   //- ── CV Watcher Info ─────────────────────────────────────
   .card
@@ -174,7 +175,9 @@ block content
       | Filename format: #[code email@domain.com.pdf] (or .doc / .docx)
 
   script.
-    const INTERVIEW_ID = '#{interview.id}';
+    const INTERVIEW_ID = !{JSON.stringify(interview.id)};
+    const ROLE_REQUIRED_SKILLS = !{JSON.stringify(interview.required_skills || '')};
+    const ROLE_SALARY_RANGE = !{JSON.stringify(interview.salary_range || '')};
     const tbody = document.getElementById('candidates-body');
 
     function badgeClass(status) {
@@ -187,14 +190,29 @@ block content
       return d.innerHTML;
     }
 
-    function toggleSummary(tid) {
-      const row = document.getElementById('summary-' + tid);
-      if (!row) return;
-      const visible = row.style.display !== 'none';
-      row.style.display = visible ? 'none' : 'table-row';
-      const btn = row.previousElementSibling.querySelector('.summary-toggle');
-      if (btn) btn.textContent = visible ? '▶ Summary' : '▼ Summary';
-    }
+    window.toggleSummary = function toggleSummary(buttonOrId) {
+      const rowId = typeof buttonOrId === 'string'
+        ? 'summary-' + buttonOrId
+        : buttonOrId.getAttribute('data-target');
+      const row = document.getElementById(rowId);
+      if (!row) return false;
+
+      const isOpen = row.style.display === 'table-row';
+      row.style.display = isOpen ? 'none' : 'table-row';
+
+      const btn = typeof buttonOrId === 'string'
+        ? document.querySelector(`[data-target="${rowId}"]`)
+        : buttonOrId;
+      if (btn) btn.textContent = isOpen ? '▶ Details' : '▼ Details';
+      return false;
+    };
+
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest('.summary-toggle');
+      if (!btn) return;
+      event.preventDefault();
+      window.toggleSummary(btn);
+    });
 
     function renderRow(c) {
       const skills = (c.skills && c.skills.length)
@@ -203,53 +221,93 @@ block content
       const score = c.resume_score != null ? Number(c.resume_score).toFixed(1) + '%' : '—';
 
       let parsed = null;
-      try { parsed = c.summary ? JSON.parse(c.summary) : null; } catch {}
+      try { parsed = c.summary ? JSON.parse(c.summary) : null; } catch {
+        parsed = c.summary ? { summary: c.summary, matching: [], missing: [] } : null;
+      }
 
-      const summaryBtn = parsed
-        ? `<button class="summary-toggle" type="button" onclick="toggleSummary('${c.thread_id}')">▶ Summary</button>`
-        : '';
+      const hasDetails = Boolean(parsed || c.video_summary || c.salary_expectation);
 
-      let actions = summaryBtn;
+      // Display status
+      const displayStatus = c.status === 'Done'
+        ? (c.english_score != null ? `Passed ${Number(c.english_score).toFixed(0)}%` : 'Passed')
+        : (c.status === 'Rejected' && c.video_summary) ? 'Failed Match'
+        : c.status === 'Error' ? 'Analysis Error' : c.status;
+      const badgeCls = c.status === 'Done' ? 'badge badge-done'
+        : c.status === 'Error' ? 'badge badge-error'
+        : 'badge badge-' + (c.status || '').toLowerCase().replace(/\s+/g, '');
 
+      // Video column
+      let videoCell = '<span style="color:var(--text-muted);font-size:12px">—</span>';
+      if (c.video_path) {
+        if (c.status === 'Done') {
+          videoCell = '<span style="color:var(--success);font-size:12px">✔ Analyzed</span>';
+        } else if (c.status === 'Rejected') {
+          videoCell = '<span style="color:var(--danger);font-size:12px">✖ Mismatch</span>';
+        } else if (c.status === 'Error') {
+          videoCell = '<span style="color:var(--danger);font-size:12px">✖ Failed</span>';
+        } else {
+          videoCell = '<span style="color:var(--warning);font-size:12px">⏳ Processing</span>';
+        }
+      } else if (c.status === 'VideoReceived') {
+        videoCell = '<span style="color:var(--warning);font-size:12px">⏳ Processing</span>';
+      }
+
+      let actions = '';
+      if (c.status === 'Error') {
+        actions += `<form action="/admin/interviews/${INTERVIEW_ID}/retry-analysis/${c.thread_id}" method="POST" style="display:inline">
+          <button class="btn-sm" type="submit" style="background:#f59e0b;color:#000">↻ Retry</button></form>`;
+      }
       if (c.status === 'Rejected') {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/reselect/${c.thread_id}" method="POST" style="display:inline">
           <button class="btn-sm btn-invite" type="submit">↩ Re-select</button></form>`;
       }
-
+      if (c.status === 'Done') {
+        actions += `<form action="/admin/interviewers/schedule/${c.thread_id}" method="POST" style="display:inline">
+          <button class="btn-sm" type="submit" style="background:var(--accent)">📅 Schedule</button></form>`;
+      }
       if (['Screened', 'AwaitingVideo', 'Done'].includes(c.status)) {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/reject/${c.thread_id}" method="POST" style="display:inline">
           <button class="btn-sm btn-reject" type="submit">✗ Reject</button></form>`;
       }
-
       actions += `<form action="/admin/interviews/${INTERVIEW_ID}/delete/${c.thread_id}" method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')">
         <button class="btn-sm btn-delete" type="submit">✕ Delete</button></form>`;
 
       const sentBadge = (c.status === 'Rejected' && c.rejection_sent)
         ? '<span class="badge-sent" title="Rejection email sent">✉</span>' : '';
 
+      const assignedBadge = c.assignment_method === 'auto'
+        ? `<span class="badge badge-auto" title="Auto-assigned ${c.match_confidence != null ? Number(c.match_confidence).toFixed(0) + '%' : ''}">Auto ${c.match_confidence != null ? Number(c.match_confidence).toFixed(0) + '%' : ''}</span>`
+        : '<span style="color:var(--text-muted);font-size:12px">Manual</span>';
+
+      let detailsBtn = '';
+      if (hasDetails) {
+        detailsBtn = `<div style="margin-top:8px"><button class="summary-toggle" type="button" data-target="summary-${c.thread_id}">▶ Details</button></div>`;
+      }
+
       let summaryRow = '';
-      if (parsed) {
-        const matching = (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('');
-        const missing = (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('');
+      if (hasDetails) {
+        const matching = parsed ? (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('') : '';
+        const missing = parsed ? (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('') : '';
         summaryRow = `<tr class="summary-row" id="summary-${c.thread_id}" style="display:none">
-          <td colspan="8"><div class="summary-box">
-            <p>${esc(parsed.summary || '')}</p>
-            <h4>✓ Matching</h4><div>${matching || '—'}</div>
-            <h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>
+          <td colspan="10"><div class="summary-box">
+            ${c.video_summary ? `<h4>Video Analysis</h4><p>${esc(c.video_summary)}</p>` : '<h4>Video Analysis</h4><p>Summary not available yet.</p>'}
+            <p><strong>Salary Expectation:</strong> ${esc(c.salary_expectation || 'Not mentioned')}</p>
+            ${ROLE_REQUIRED_SKILLS ? `<p><strong>Required Skills:</strong> ${esc(ROLE_REQUIRED_SKILLS)}</p>` : ''}
+            ${ROLE_SALARY_RANGE ? `<p><strong>Role Salary Range:</strong> ${esc(ROLE_SALARY_RANGE)}</p>` : ''}
+            ${c.confidence_score != null ? `<p><strong>Confidence Score:</strong> ${Number(c.confidence_score).toFixed(1)}</p>` : ''}
+            ${parsed ? `<h4 style="margin-top:10px">Resume Summary</h4><p>${esc(parsed.summary || 'No resume summary available.')}</p><h4>✓ Matching</h4><div>${matching || '—'}</div><h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>` : ''}
           </div></td></tr>`;
       }
 
-      const assignedBadge = c.assignment_method === 'auto'
-        ? `<span class="badge badge-auto" title="Auto-assigned ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}">Auto ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}</span>`
-        : '<span style="color:var(--text-muted);font-size:12px">Manual</span>';
-
       return `<tr>
         <td>${esc(c.email)}</td>
-        <td><span class="${badgeClass(c.status)}">${esc(c.status)}</span>${sentBadge}</td>
+        <td><span class="${badgeCls}">${esc(displayStatus)}</span>${sentBadge}${detailsBtn}</td>
+        <td>${videoCell}</td>
         <td>${assignedBadge}</td>
         <td class="score">${score}</td>
         <td class="score">${c.english_score != null ? Number(c.english_score).toFixed(1) : '—'}</td>
         <td>${skills}</td>
+        <td>${esc(c.salary_expectation || '—')}</td>
         <td>${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</td>
         <td class="actions-cell">${actions}</td>
       </tr>${summaryRow}`;
@@ -270,7 +328,7 @@ block content
           if (row) {
             row.style.display = 'table-row';
             const btn = row.previousElementSibling.querySelector('.summary-toggle');
-            if (btn) btn.textContent = '▼ Summary';
+            if (btn) btn.textContent = '▼ Details';
           }
         });
       } catch { /* ignore */ }
@@ -286,16 +344,18 @@ block content
     const embedLog = document.getElementById('embed-log');
     let embedPollTimer = null;
 
-    settingsForm.addEventListener('submit', function() {
-      // Show the panel after form submits
-      setTimeout(() => {
-        embedPanel.style.display = 'block';
-        embedSpinner.style.display = 'inline-block';
-        embedLabel.textContent = ' Embedding JD...';
-        embedLog.textContent = 'Starting...\n';
-        startEmbedPoll();
-      }, 500);
-    });
+    if (settingsForm) {
+      settingsForm.addEventListener('submit', function() {
+        // Show the panel after form submits
+        setTimeout(() => {
+          embedPanel.style.display = 'block';
+          embedSpinner.style.display = 'inline-block';
+          embedLabel.textContent = ' Embedding JD...';
+          embedLog.textContent = 'Starting...\n';
+          startEmbedPoll();
+        }, 500);
+      });
+    }
 
     function startEmbedPoll() {
       if (embedPollTimer) clearInterval(embedPollTimer);

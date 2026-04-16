@@ -92,12 +92,12 @@ router.post("/settings/imap", async (req, res, next) => {
 // POST /admin/interviews — create a new interview
 router.post("/interviews", async (req, res, next) => {
   try {
-    const { title } = req.body;
+    const { title, requiredSkills, salaryRange } = req.body;
     if (!title || !title.trim()) return res.status(400).send("Title is required");
     const id = uuidv4();
     await query(
-      "INSERT INTO interviews (id, title, created_at) VALUES ($1, $2, NOW())",
-      [id, title.trim()]
+      "INSERT INTO interviews (id, title, required_skills, salary_range, created_at) VALUES ($1, $2, $3, $4, NOW())",
+      [id, title.trim(), (requiredSkills || '').trim(), (salaryRange || '').trim()]
     );
     // Create the CV drop folder for this interview
     fs.mkdirSync(path.join(process.cwd(), "cvs", id), { recursive: true });
@@ -116,37 +116,13 @@ router.get("/interviews/:id", async (req, res, next) => {
     if (!intRow.rows.length) return res.status(404).send("Interview not found");
 
     const candidates = await query(
-      "SELECT thread_id, email, status, resume_score, summary, english_score, skills, rejection_sent, assignment_method, match_confidence, created_at FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
+      "SELECT thread_id, email, status, resume_score, summary, english_score, confidence_score, skills, salary_expectation, video_summary, rejection_sent, assignment_method, match_confidence, created_at, video_path FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
       [id]
-    );
-
-    // Interviewers assigned to this interview
-    const assignedResult = await query(
-      `SELECT i.*,
-              COUNT(s.id) FILTER (WHERE s.status = 'available' AND s.slot_start > NOW()) AS available_slots
-       FROM interview_interviewers ii
-       JOIN interviewers i ON i.id = ii.interviewer_id
-       LEFT JOIN interviewer_slots s ON s.interviewer_id = i.id
-       WHERE ii.interview_id = $1
-       GROUP BY i.id
-       ORDER BY i.name`,
-      [id]
-    );
-
-    // All interviewers for the assign dropdown (exclude already assigned)
-    const assignedIds = assignedResult.rows.map((r) => r.id);
-    const allInterviewersResult = await query(
-      "SELECT id, name, email FROM interviewers ORDER BY name"
-    );
-    const allInterviewers = allInterviewersResult.rows.filter(
-      (r) => !assignedIds.includes(r.id)
     );
 
     res.render("interview", {
       interview: intRow.rows[0],
       candidates: candidates.rows,
-      assignedInterviewers: assignedResult.rows,
-      allInterviewers,
     });
   } catch (err) {
     next(err);
@@ -157,13 +133,15 @@ router.get("/interviews/:id", async (req, res, next) => {
 router.post("/interviews/:id/settings", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { jd, passThreshold, domainFilter } = req.body;
+    const { jd, passThreshold, domainFilter, requiredSkills, salaryRange } = req.body;
 
     const updates = [];
     const params = [];
     let idx = 1;
 
     if (jd !== undefined) { updates.push(`jd = $${idx++}`); params.push(jd); }
+    if (requiredSkills !== undefined) { updates.push(`required_skills = $${idx++}`); params.push(requiredSkills); }
+    if (salaryRange !== undefined) { updates.push(`salary_range = $${idx++}`); params.push(salaryRange); }
     if (passThreshold !== undefined) { updates.push(`pass_threshold = $${idx++}`); params.push(parseFloat(passThreshold)); }
     if (domainFilter !== undefined) { updates.push(`domain_filter = $${idx++}`); params.push(domainFilter); }
 
@@ -213,6 +191,32 @@ router.post("/interviews/:id/reselect/:threadId", async (req, res, next) => {
   } catch (err) {
     if (err.message.includes("not found")) return res.status(404).send(err.message);
     if (err.message.includes("not in Rejected")) return res.status(409).send(err.message);
+    next(err);
+  }
+});
+
+// POST /admin/interviews/:id/retry-analysis/:threadId — re-run video analysis on Error status
+router.post("/interviews/:id/retry-analysis/:threadId", async (req, res, next) => {
+  try {
+    const { threadId, id } = req.params;
+    const result = await query("SELECT video_path, status FROM candidates WHERE thread_id = $1", [threadId]);
+    if (!result.rows.length) return res.status(404).send("Candidate not found");
+
+    const { video_path, status } = result.rows[0];
+    if (status !== "Error") return res.status(409).send("Candidate is not in Error status");
+    if (!video_path) return res.status(400).send("No video file found for this candidate — candidate must re-upload");
+
+    // Reset status to VideoReceived before retrying
+    await query("UPDATE candidates SET status = 'VideoReceived' WHERE thread_id = $1", [threadId]);
+
+    // Fire analysis in background
+    const { analyzeVideoForCandidate } = await import("../graph/actions.js");
+    analyzeVideoForCandidate(threadId, video_path).catch((err) => {
+      console.error(`[Retry] Video analysis error for ${threadId}:`, err.message);
+    });
+
+    res.redirect(`/admin/interviews/${id}`);
+  } catch (err) {
     next(err);
   }
 });

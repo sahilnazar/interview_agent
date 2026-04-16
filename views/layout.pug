@@ -399,3 +399,26 @@ html(lang="en")
         button.btn-sm(type="submit" style="background:transparent;color:var(--text-muted);border:1px solid var(--border);width:100%") Logout
     main.content
       block content
+
+    script.
+      // Global fallback so stale inline handlers like onclick="toggleSummary(this)" never break.
+      if (!window.toggleSummary) {
+        window.toggleSummary = function(buttonOrId) {
+          var rowId = typeof buttonOrId === 'string'
+            ? 'summary-' + buttonOrId
+            : (buttonOrId && buttonOrId.getAttribute ? buttonOrId.getAttribute('data-target') : null);
+          if (!rowId) return false;
+
+          var row = document.getElementById(rowId);
+          if (!row) return false;
+
+          var isOpen = row.style.display === 'table-row';
+          row.style.display = isOpen ? 'none' : 'table-row';
+
+          var btn = typeof buttonOrId === 'string'
+            ? document.querySelector('[data-target="' + rowId + '"]')
+            : buttonOrId;
+          if (btn) btn.textContent = isOpen ? '▶ Details' : '▼ Details';
+          return false;
+        };
+      }

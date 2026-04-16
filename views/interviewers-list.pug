@@ -5,9 +5,10 @@ block content
     a.back-link(href="/admin") ← Back
     h1 Interviewers
     form.inline-form(action="/admin/interviewers" method="POST")
-      input(type="text" name="name" placeholder="Full name" required style="width:180px;margin-bottom:0")
-      input(type="email" name="email" placeholder="email@company.com" required style="width:200px;margin-bottom:0")
-      input(type="text" name="department" placeholder="Department (optional)" style="width:180px;margin-bottom:0")
+      input(type="text" name="name" placeholder="Full name" required style="width:160px;margin-bottom:0")
+      input(type="email" name="email" placeholder="email@company.com" required style="width:180px;margin-bottom:0")
+      input(type="text" name="department" placeholder="Department (optional)" style="width:140px;margin-bottom:0")
+      input(type="text" name="skills" placeholder="Skills (e.g. React, Python, SQL)" style="width:200px;margin-bottom:0")
       button.btn(type="submit") + Add Interviewer
 
   .card
@@ -18,6 +19,7 @@ block content
             th Name
             th Email
             th Department
+            th Skills
             th Interviews
             th Available Slots
             th Actions
@@ -27,6 +29,7 @@ block content
               td= i.name
               td= i.email
               td= i.department || '—'
+              td= i.skills || '—'
               td= i.assigned_interviews || 0
               td= i.available_slots || 0
               td.actions-cell

@@ -31,12 +31,12 @@ router.get("/", requireAdmin, async (req, res, next) => {
 // ─── Admin: create interviewer ─────────────────────────────────────────────
 router.post("/", requireAdmin, async (req, res, next) => {
   try {
-    const { name, email, department } = req.body;
+    const { name, email, department, skills } = req.body;
     if (!name || !email)
       return res.status(400).send("Name and email are required");
     await query(
-      "INSERT INTO interviewers (name, email, department) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING",
-      [name.trim(), email.trim().toLowerCase(), (department || "").trim()],
+      "INSERT INTO interviewers (name, email, department, skills) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING",
+      [name.trim(), email.trim().toLowerCase(), (department || "").trim(), (skills || "").trim()],
     );
     res.redirect("/admin/interviewers");
   } catch (err) {

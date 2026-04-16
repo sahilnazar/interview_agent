@@ -1,10 +1,44 @@
 import fs from "node:fs";
 import path from "node:path";
-import { HumanMessage } from "@langchain/core/messages";
 
 import { query } from "../config/db.js";
-import { parseJSON, callWithRetry, getGeminiModel } from "./helpers.js";
 import { sendInvitationEmail, sendRejectionEmail } from "../services/email.js";
+import { analyzeCandidateVideo } from "../services/video-analysis.js";
+import { autoAssignAndConfirmCandidate } from "../services/scheduler.js";
+
+function parseSkillList(value = "") {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeText(value = "") {
+  return value.toLowerCase().replace(/[^a-z0-9+#.]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function hasRequiredSkillMatch(requiredSkillsText = "", result = {}) {
+  const requiredSkills = parseSkillList(requiredSkillsText);
+  if (!requiredSkills.length) return { matched: true, missing: [] };
+
+  const detectedSkills = Array.isArray(result.skills) ? result.skills : [];
+  const combinedText = normalizeText([
+    detectedSkills.join(" "),
+    result.transcript || "",
+    result.summary || "",
+    result.fitReason || "",
+  ].join(" "));
+
+  const matched = requiredSkills.filter((skill) => {
+    const target = normalizeText(skill);
+    return target && combinedText.includes(target);
+  });
+
+  return {
+    matched: matched.length > 0,
+    missing: requiredSkills.filter((skill) => !matched.includes(skill)),
+  };
+}
 
 /**
  * Re-select a rejected candidate — send invitation email & update status to AwaitingVideo.
@@ -28,50 +62,67 @@ export async function rejectCandidateById(threadId) {
 }
 
 /**
- * Analyse an uploaded candidate video with Gemini Pro.
+ * Analyse an uploaded candidate video using Groq Whisper + Gemini 2.5 Flash.
  */
 export async function analyzeVideoForCandidate(threadId, videoPath) {
   try {
     const absPath = path.resolve(videoPath);
-    const videoBuffer = fs.readFileSync(absPath);
-    const base64Video = videoBuffer.toString("base64");
+    console.log(`[VideoAnalysis] Starting analysis for ${threadId}`);
 
-    const ext = path.extname(absPath).toLowerCase();
-    const mimeMap = { ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime" };
-    const mimeType = mimeMap[ext] || "video/mp4";
+    const interviewRow = await query(
+      `SELECT c.interview_id, i.required_skills, i.salary_range
+       FROM candidates c
+       JOIN interviews i ON i.id = c.interview_id
+       WHERE c.thread_id = $1`,
+      [threadId]
+    );
+    const roleContext = interviewRow.rows[0] || { interview_id: null, required_skills: "", salary_range: "" };
 
-    const model = getGeminiModel();
-    const message = new HumanMessage({
-      content: [
-        {
-          type: "image_url",
-          image_url: `data:${mimeType};base64,${base64Video}`,
-        },
-        {
-          type: "text",
-          text: [
-            "Analyze this candidate interview video.",
-            'Return only valid JSON: { "englishScore": <1-10>, "skills": ["skill1", "skill2"] }.',
-            "englishScore is fluency/clarity rating. skills are specific technical topics mentioned.",
-          ].join(" "),
-        },
-      ],
+    const result = await analyzeCandidateVideo(absPath, {
+      requiredSkills: roleContext.required_skills || "",
+      salaryRange: roleContext.salary_range || "",
     });
 
-    const response = await callWithRetry(() => model.invoke([message]));
-    const analysis = parseJSON(response.content);
-    const englishScore = typeof analysis.englishScore === "number" ? analysis.englishScore : 0;
-    const skills = Array.isArray(analysis.skills) ? analysis.skills : [];
+    const { englishScore, confidenceScore, skills, summary, transcript, salaryExpectation, fitVerdict, fitReason } = result;
+    const skillCheck = hasRequiredSkillMatch(roleContext.required_skills || "", result);
+
+    let finalStatus = "Done";
+    let finalSummary = summary || "";
+    if ((fitVerdict === "mismatch" || fitVerdict === "fail" || fitVerdict === "reject") || !skillCheck.matched) {
+      finalStatus = "Rejected";
+      const reason = fitReason || (skillCheck.missing.length ? `Missing required skills in video: ${skillCheck.missing.join(", ")}` : "Candidate does not match the role requirements.");
+      finalSummary = [summary, `Auto-screen result: ${reason}`].filter(Boolean).join(" ");
+    }
 
     await query(
-      "UPDATE candidates SET english_score = $1, skills = $2, status = 'Done', video_path = $3 WHERE thread_id = $4",
-      [englishScore, JSON.stringify(skills), videoPath, threadId]
+      `UPDATE candidates
+       SET english_score = $1, confidence_score = $2, skills = $3,
+           salary_expectation = $4, video_summary = $5, video_transcript = $6,
+           status = $7, video_path = $8
+       WHERE thread_id = $9`,
+      [englishScore, confidenceScore, JSON.stringify(skills), salaryExpectation || null, finalSummary, transcript, finalStatus, videoPath, threadId]
     );
 
-    return { englishScore, skills };
+    let scheduling = null;
+    if (finalStatus === "Done" && roleContext.interview_id) {
+      try {
+        scheduling = await autoAssignAndConfirmCandidate(threadId, roleContext.interview_id);
+        if (scheduling?.scheduled) {
+          console.log(`[Scheduling] Auto-assigned interviewer for ${threadId} (scheduledId=${scheduling.scheduledId || "existing"})`);
+        } else {
+          console.log(`[Scheduling] No available assigned interviewer for ${threadId} yet`);
+        }
+      } catch (schedErr) {
+        console.error(`[Scheduling] Auto-assignment failed for ${threadId}:`, schedErr.message || schedErr);
+      }
+    }
+
+    console.log(`[VideoAnalysis] Done for ${threadId} — english=${englishScore}, confidence=${confidenceScore}, status=${finalStatus}`);
+    return { ...result, status: finalStatus, scheduling };
   } catch (err) {
     console.error("Video analysis failed:", err);
-    await query("UPDATE candidates SET status = 'Error' WHERE thread_id = $1", [threadId]);
+    // Set status to Error so admin can see it; video_path is preserved for retry
+    await query("UPDATE candidates SET status = 'Error' WHERE thread_id = $1", [threadId]).catch(() => {});
     throw err;
   }
 }

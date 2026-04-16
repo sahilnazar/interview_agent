@@ -9,6 +9,7 @@ import { createGraph } from "./graph/index.js";
 import { createApp } from "./app.js";
 import { startCVWatcher } from "./services/watcher.js";
 import { startEmailIngest } from "./services/email-ingest.js";
+import { startAutoSchedulePassedCandidates } from "./services/scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CVS_DIR = path.join(__dirname, "..", "cvs");
@@ -25,6 +26,7 @@ async function main() {
 
   startCVWatcher(CVS_DIR, CVS_PROCESSED_DIR, compiledGraph);
   startEmailIngest(path.join(CVS_DIR, "auto"));
+  startAutoSchedulePassedCandidates();
 
   app.listen(PORT, () => {
     console.log(`Interview Assistant running → http://localhost:${PORT}/admin`);
@@ -34,4 +36,12 @@ async function main() {
 main().catch((err) => {
   console.error("Startup failed:", err);
   process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
 });

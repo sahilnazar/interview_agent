@@ -31,7 +31,7 @@ router.post("/admin", async (req, res, next) => {
 
 // ─── Candidate Login ─────────────────────────────────────────────────────
 router.get("/candidate", (req, res) => {
-  if (req.session && req.session.candidate) return res.redirect("/candidate/dashboard");
+  if (req.session && req.session.candidate) return res.redirect("/candidate/interview");
   res.render("login-candidate", { error: null });
 });
 
@@ -58,7 +58,7 @@ router.post("/candidate", async (req, res, next) => {
     if (candidate.must_change_password) {
       return res.redirect("/candidate/change-password");
     }
-    res.redirect("/candidate/dashboard");
+    res.redirect("/candidate/interview");
   } catch (err) {
     next(err);
   }

@@ -12,6 +12,7 @@ import authRouter from "./routes/auth.js";
 import candidateRouter from "./routes/candidate.js";
 import interviewerRouter from "./routes/interviewer.js";
 import interviewersAdminRouter from "./routes/interviewers-admin.js";
+import careersRouter from "./routes/careers.js";
 import { requireAdmin } from "./middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,7 +36,9 @@ export function createApp() {
   }));
 
   // Routes
-  app.get("/", (_req, res) => res.redirect("/login/admin"));
+  app.get("/favicon.ico", (_req, res) => res.sendStatus(204));
+  app.get("/", (_req, res) => res.redirect("/careers"));
+  app.use("/careers", careersRouter);
   app.use("/login", authRouter);
   app.use("/admin/interviewers", requireAdmin, interviewersAdminRouter);
   app.use("/admin", requireAdmin, adminRouter);

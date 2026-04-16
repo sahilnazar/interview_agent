@@ -54,12 +54,19 @@ export async function initDB() {
     process.exit(1);
   }
 
-  // Enable pgvector extension (requires pgvector installed on the server)
+  // Enable pgvector extension; detect whether it's available and store result
+  let pgvectorAvailable = false;
   try {
     await query(`CREATE EXTENSION IF NOT EXISTS vector`);
+    pgvectorAvailable = true;
+    console.log("pgvector extension available");
   } catch (err) {
-    console.warn("pgvector extension not available — RAG features will use full JD fallback:", err.message);
+    console.warn("pgvector extension not available — RAG features will use JSONB fallback:", err.message);
   }
+  await query(`
+    INSERT INTO settings (key, value) VALUES ('pgvector_available', $1)
+    ON CONFLICT (key) DO UPDATE SET value = $1
+  `, [pgvectorAvailable ? 'true' : 'false']);
 
   // Interviews table (replaces the old settings table)
   await query(`
@@ -67,6 +74,8 @@ export async function initDB() {
       id              UUID PRIMARY KEY,
       title           TEXT NOT NULL,
       jd              TEXT NOT NULL DEFAULT '',
+      required_skills TEXT NOT NULL DEFAULT '',
+      salary_range    TEXT NOT NULL DEFAULT '',
       pass_threshold  REAL NOT NULL DEFAULT 60,
       domain_filter   TEXT NOT NULL DEFAULT '',
       status          TEXT NOT NULL DEFAULT 'active',
@@ -87,6 +96,7 @@ export async function initDB() {
       video_path      TEXT,
       english_score   REAL,
       skills          JSONB,
+      salary_expectation TEXT,
       status          TEXT NOT NULL DEFAULT 'Screening',
       rejection_sent  BOOLEAN NOT NULL DEFAULT FALSE,
       created_at      TIMESTAMPTZ DEFAULT NOW()
@@ -108,7 +118,44 @@ export async function initDB() {
   `);
   await query(`
     DO $$ BEGIN
+      ALTER TABLE interviews ADD COLUMN IF NOT EXISTS required_skills TEXT DEFAULT '';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE interviews ADD COLUMN IF NOT EXISTS salary_range TEXT DEFAULT '';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
       ALTER TABLE candidates ADD COLUMN IF NOT EXISTS summary TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  // Video analysis result columns
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS confidence_score REAL;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS video_summary TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS video_transcript TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS salary_expectation TEXT;
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$
   `);
@@ -203,32 +250,41 @@ export async function initDB() {
     END $$
   `);
 
-  // JD chunks for RAG — scoped per interview (requires pgvector)
+  // JD chunks for RAG — use vector column if pgvector available, else JSONB
   try {
-    // Migration: if jd_chunks exists with a fixed-dimension vector column, recreate it
-    const colCheck = await query(`
-      SELECT format_type(atttypid, atttypmod) AS col_type
-      FROM pg_attribute
-      WHERE attrelid = 'jd_chunks'::regclass AND attname = 'embedding'
-    `).catch(() => null);
-    if (colCheck && colCheck.rows.length && colCheck.rows[0].col_type !== 'vector') {
-      console.log(`Migrating jd_chunks.embedding from ${colCheck.rows[0].col_type} → vector (flexible dimension)`);
-      await query('DROP TABLE jd_chunks');
+    if (pgvectorAvailable) {
+      // Migration: if jd_chunks exists with a non-vector embedding column, recreate it
+      const colCheck = await query(`
+        SELECT format_type(atttypid, atttypmod) AS col_type
+        FROM pg_attribute
+        WHERE attrelid = 'jd_chunks'::regclass AND attname = 'embedding'
+      `).catch(() => null);
+      if (colCheck && colCheck.rows.length && !colCheck.rows[0].col_type.startsWith('vector')) {
+        console.log(`Migrating jd_chunks.embedding from ${colCheck.rows[0].col_type} → vector`);
+        await query('DROP TABLE jd_chunks');
+      }
+      await query(`
+        CREATE TABLE IF NOT EXISTS jd_chunks (
+          id            SERIAL PRIMARY KEY,
+          interview_id  UUID NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
+          chunk_text    TEXT NOT NULL,
+          embedding     vector NOT NULL
+        )
+      `);
+    } else {
+      // pgvector not installed — use JSONB to store embedding array
+      await query(`
+        CREATE TABLE IF NOT EXISTS jd_chunks (
+          id            SERIAL PRIMARY KEY,
+          interview_id  UUID NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
+          chunk_text    TEXT NOT NULL,
+          embedding     JSONB NOT NULL
+        )
+      `);
     }
-
-    await query(`
-      CREATE TABLE IF NOT EXISTS jd_chunks (
-        id            SERIAL PRIMARY KEY,
-        interview_id  UUID NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
-        chunk_text    TEXT NOT NULL,
-        embedding     vector NOT NULL
-      )
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_jd_chunks_interview ON jd_chunks(interview_id)
-    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_jd_chunks_interview ON jd_chunks(interview_id)`);
   } catch (err) {
-    console.warn("Could not create jd_chunks table (pgvector may not be installed):", err.message);
+    console.warn("Could not create jd_chunks table:", err.message);
   }
 
   // ── Interviewers table ────────────────────────────────────────────────
@@ -238,8 +294,17 @@ export async function initDB() {
       name       TEXT NOT NULL,
       email      TEXT UNIQUE NOT NULL,
       department TEXT NOT NULL DEFAULT '',
+      skills     TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  // Migration: add skills column if it doesn't exist
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE interviewers ADD COLUMN IF NOT EXISTS skills TEXT DEFAULT '';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
   `);
 
   // ── Interviewer <-> Interview assignment ─────────────────────────────
