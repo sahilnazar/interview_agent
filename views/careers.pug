@@ -1,0 +1,579 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0")
+    title Careers — Interview Assistant
+    link(href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet")
+    style.
+      :root {
+        --bg: #080810;
+        --surface: #0f0f1a;
+        --surface2: #13131f;
+        --accent: #4f6ef7;
+        --accent-hover: #3b5ce4;
+        --accent-glow: rgba(79,110,247,.25);
+        --success: #22c55e;
+        --danger: #ef4444;
+        --warning: #f59e0b;
+        --text: #e2e8f0;
+        --text-muted: #94a3b8;
+        --border: #1e293b;
+        --radius: 12px;
+      }
+      *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        font-family: 'DM Mono', monospace;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+      h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+
+      /* ── NAV ── */
+      nav {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+        background: rgba(8,8,16,.85);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+        padding: 0 40px;
+        height: 64px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .nav-logo {
+        font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+        color: var(--accent); letter-spacing: -.5px; text-decoration: none;
+      }
+      .nav-right { display: flex; align-items: center; gap: 20px; }
+      .nav-link { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color .15s; }
+      .nav-link:hover { color: var(--text); }
+      .btn-nav {
+        padding: 8px 20px; background: var(--accent); color: #fff; border: none;
+        border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 13px;
+        font-weight: 500; cursor: pointer; text-decoration: none; transition: background .15s;
+      }
+      .btn-nav:hover { background: var(--accent-hover); }
+
+      /* ── HERO ── */
+      .hero {
+        position: relative;
+        min-height: 100vh;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center;
+        padding: 80px 24px 60px;
+        overflow: hidden;
+      }
+      .hero-bg {
+        position: absolute; inset: 0; z-index: 0;
+        background:
+          radial-gradient(ellipse 80% 60% at 50% 30%, rgba(79,110,247,.18) 0%, transparent 70%),
+          radial-gradient(ellipse 50% 40% at 80% 70%, rgba(168,85,247,.1) 0%, transparent 60%),
+          var(--bg);
+      }
+      .hero-grid {
+        position: absolute; inset: 0; z-index: 0; opacity: .04;
+        background-image: linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 48px 48px;
+      }
+      .hero-content { position: relative; z-index: 1; max-width: 800px; }
+      .hero-badge {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 16px; background: rgba(79,110,247,.12);
+        border: 1px solid rgba(79,110,247,.3); border-radius: 20px;
+        font-size: 12px; color: var(--accent); margin-bottom: 28px;
+        letter-spacing: .5px; text-transform: uppercase;
+      }
+      .hero-badge::before { content: '●'; font-size: 8px; animation: pulse 2s infinite; }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+      .hero h1 {
+        font-size: clamp(42px, 7vw, 80px);
+        line-height: 1.05;
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #fff 0%, #a0b4ff 50%, var(--accent) 100%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      }
+      .hero p {
+        font-size: clamp(15px, 2vw, 18px); color: var(--text-muted);
+        max-width: 560px; margin: 0 auto 40px; line-height: 1.7;
+      }
+      .hero-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+      .btn-hero {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 14px 32px; border-radius: 8px; font-family: 'DM Mono', monospace;
+        font-size: 14px; font-weight: 500; cursor: pointer; transition: all .2s;
+        text-decoration: none; border: none;
+      }
+      .btn-hero-primary {
+        background: var(--accent); color: #fff;
+        box-shadow: 0 0 32px var(--accent-glow);
+      }
+      .btn-hero-primary:hover { background: var(--accent-hover); box-shadow: 0 0 48px var(--accent-glow); transform: translateY(-1px); }
+      .btn-hero-outline {
+        background: transparent; color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .btn-hero-outline:hover { border-color: var(--accent); color: var(--accent); }
+      .hero-scroll-hint {
+        position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+        z-index: 1; color: var(--text-muted); font-size: 12px;
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        animation: float 3s ease-in-out infinite;
+      }
+      .hero-scroll-hint::after { content: '↓'; font-size: 18px; }
+      @keyframes float { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
+
+      /* ── STATS ── */
+      .stats-bar {
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 32px 40px;
+        display: flex; justify-content: center; gap: 64px; flex-wrap: wrap;
+      }
+      .stat-item { text-align: center; }
+      .stat-number { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: var(--accent); }
+      .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+
+      /* ── EXPLORE SECTION ── */
+      .section { padding: 80px 40px; max-width: 1200px; margin: 0 auto; }
+      .section-header { text-align: center; margin-bottom: 56px; }
+      .section-header h2 { font-size: clamp(28px, 4vw, 44px); margin-bottom: 16px; }
+      .section-header p { color: var(--text-muted); font-size: 15px; max-width: 600px; margin: 0 auto; line-height: 1.7; }
+
+      /* ── JOB CARDS ── */
+      #jobs-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 24px;
+      }
+      .job-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px;
+        transition: border-color .2s, transform .2s, box-shadow .2s;
+        cursor: default;
+      }
+      .job-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 32px rgba(79,110,247,.12);
+      }
+      .job-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+      .job-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; color: var(--text); }
+      .job-badge {
+        display: inline-block; padding: 3px 10px; background: rgba(34,197,94,.12);
+        color: var(--success); border-radius: 20px; font-size: 11px; font-weight: 500;
+        text-transform: uppercase; letter-spacing: .3px; white-space: nowrap;
+      }
+      .job-jd-preview {
+        color: var(--text-muted); font-size: 13px; line-height: 1.65;
+        margin-bottom: 20px;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+      }
+      .job-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+      .job-meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+      .job-actions { display: flex; gap: 10px; }
+      .btn-view {
+        flex: 1; padding: 9px 16px; border: 1px solid var(--border); border-radius: 6px;
+        background: transparent; color: var(--text); font-family: 'DM Mono', monospace;
+        font-size: 12px; cursor: pointer; transition: all .15s;
+      }
+      .btn-view:hover { border-color: var(--accent); color: var(--accent); }
+      .btn-apply {
+        flex: 1; padding: 9px 16px; border: none; border-radius: 6px;
+        background: var(--accent); color: #fff; font-family: 'DM Mono', monospace;
+        font-size: 12px; cursor: pointer; transition: background .15s;
+      }
+      .btn-apply:hover { background: var(--accent-hover); }
+      .jobs-loading { text-align: center; padding: 80px 0; color: var(--text-muted); }
+      .jobs-empty { text-align: center; padding: 80px 0; color: var(--text-muted); }
+      .jobs-empty h3 { font-size: 20px; margin-bottom: 8px; color: var(--text); }
+
+      /* ── WHY JOIN SECTION ── */
+      .why-section {
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 80px 40px;
+      }
+      .why-grid {
+        max-width: 1100px; margin: 0 auto;
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 32px;
+        margin-top: 48px;
+      }
+      .why-card { text-align: center; padding: 28px 20px; }
+      .why-icon { font-size: 40px; margin-bottom: 16px; }
+      .why-card h3 { font-size: 16px; margin-bottom: 10px; }
+      .why-card p { color: var(--text-muted); font-size: 13px; line-height: 1.65; }
+
+      /* ── MODAL OVERLAY ── */
+      .modal-overlay {
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,0,0,.75);
+        backdrop-filter: blur(6px);
+        display: none; align-items: center; justify-content: center;
+        padding: 24px;
+      }
+      .modal-overlay.open { display: flex; }
+      .modal {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        width: 100%; max-width: 680px;
+        max-height: 90vh; overflow-y: auto;
+        padding: 36px;
+        position: relative;
+      }
+      .modal-close {
+        position: absolute; top: 18px; right: 18px;
+        background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+        width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px;
+        display: flex; align-items: center; justify-content: center; transition: all .15s;
+      }
+      .modal-close:hover { border-color: var(--danger); color: var(--danger); }
+      .modal-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+      .modal-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+      .modal-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 24px; gap: 0; }
+      .modal-tab {
+        padding: 10px 20px; font-family: 'DM Mono', monospace; font-size: 13px;
+        color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent;
+        transition: all .15s; background: transparent; border-top: none; border-left: none; border-right: none;
+      }
+      .modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+      .jd-text {
+        background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+        padding: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.75;
+        max-height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+      }
+
+      /* ── APPLY FORM ── */
+      .form-group { margin-bottom: 20px; }
+      label {
+        display: block; font-size: 11px; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;
+      }
+      input[type="text"], input[type="email"] {
+        width: 100%; padding: 11px 14px;
+        background: var(--bg); border: 1px solid var(--border);
+        border-radius: 7px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+        transition: border-color .15s; outline: none;
+      }
+      input[type="text"]:focus, input[type="email"]:focus { border-color: var(--accent); }
+      .file-drop {
+        border: 2px dashed var(--border); border-radius: 8px;
+        padding: 32px 20px; text-align: center; cursor: pointer;
+        transition: border-color .15s, background .15s;
+        background: var(--bg);
+      }
+      .file-drop:hover, .file-drop.dragover { border-color: var(--accent); background: rgba(79,110,247,.04); }
+      .file-drop input[type="file"] { display: none; }
+      .file-drop-label { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+      .file-drop-label strong { color: var(--accent); }
+      .file-name-display { margin-top: 10px; font-size: 12px; color: var(--success); }
+      .btn-submit {
+        width: 100%; padding: 13px; background: var(--accent); color: #fff;
+        border: none; border-radius: 8px; font-family: 'DM Mono', monospace;
+        font-size: 14px; font-weight: 500; cursor: pointer; transition: background .15s;
+        margin-top: 8px;
+      }
+      .btn-submit:hover:not(:disabled) { background: var(--accent-hover); }
+      .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+      .form-msg { margin-top: 14px; padding: 12px 16px; border-radius: 7px; font-size: 13px; }
+      .form-msg.success { background: rgba(34,197,94,.1); color: var(--success); border: 1px solid rgba(34,197,94,.2); }
+      .form-msg.error { background: rgba(239,68,68,.1); color: var(--danger); border: 1px solid rgba(239,68,68,.2); }
+
+      /* ── FOOTER ── */
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 40px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 640px) {
+        nav { padding: 0 20px; }
+        .section { padding: 60px 20px; }
+        .stats-bar { gap: 32px; padding: 28px 20px; }
+        .why-section { padding: 60px 20px; }
+        .modal { padding: 24px; }
+      }
+
+  body
+    //- ── Nav ─────────────────────────────────────────────────────
+    nav
+      a.nav-logo(href="/careers") InterviewAssist
+      .nav-right
+        a.nav-link(href="#jobs") Open Roles
+        a.nav-link(href="#why") Why Us
+        a.btn-nav(href="#jobs") Join Us →
+
+    //- ── Hero ────────────────────────────────────────────────────
+    section.hero
+      .hero-bg
+      .hero-grid
+      .hero-content
+        .hero-badge We're hiring
+        h1 Let's grow together.
+        p
+          | Join our crew of talented professionals. Work on real challenges,
+          | grow your skills, and build a career you're proud of.
+        .hero-btns
+          a.btn-hero.btn-hero-primary(href="#jobs") Explore Open Roles ↓
+          a.btn-hero.btn-hero-outline(href="#why") Why join us?
+      .hero-scroll-hint Scroll to explore
+
+    //- ── Stats bar ───────────────────────────────────────────────
+    .stats-bar
+      .stat-item
+        .stat-number#stat-openings 0
+        .stat-label Open Positions
+      .stat-item
+        .stat-number Fast
+        .stat-label Hiring Process
+      .stat-item
+        .stat-number AI
+        .stat-label Powered Screening
+      .stat-item
+        .stat-number 100%
+        .stat-label Remote Friendly
+
+    //- ── Jobs Section ────────────────────────────────────────────
+    section#jobs
+      .section
+        .section-header
+          h2 Explore Opportunities
+          p
+            | Find your next challenge. All open positions are listed below.
+            | Click "Apply Now" to start your application journey.
+        #jobs-grid
+          .jobs-loading
+            p Loading open positions…
+
+    //- ── Why Join ────────────────────────────────────────────────
+    section#why.why-section
+      .section-header
+        h2 Why join us?
+        p We believe great people build great products. Here's what makes us different.
+      .why-grid
+        .why-card
+          .why-icon 🚀
+          h3 Fast-Track Growth
+          p Accelerate your career with mentorship, challenges, and real ownership of your work.
+        .why-card
+          .why-icon 🤖
+          h3 AI-Powered Work
+          p Work at the frontier of technology — build systems that actually matter in the real world.
+        .why-card
+          .why-icon 🌍
+          h3 Remote Friendly
+          p Work from anywhere. We care about results, not where you sit.
+        .why-card
+          .why-icon 🎯
+          h3 Transparent Process
+          p Clear expectations, honest feedback, and a hiring process that respects your time.
+
+    //- ── Footer ──────────────────────────────────────────────────
+    footer
+      p © #{new Date().getFullYear()} Interview Assistant. All rights reserved.
+      p(style="margin-top:8px")
+        a.nav-link(href="/login/candidate") Candidate Portal
+        span(style="margin:0 12px;") ·
+        a.nav-link(href="/login/admin") Admin Portal
+
+    //- ── Job Detail / Apply Modal ─────────────────────────────────
+    .modal-overlay#modal-overlay
+      .modal#modal
+        button.modal-close#modal-close(type="button" aria-label="Close") ×
+        p.modal-title#modal-title Job Title
+        p.modal-subtitle#modal-subtitle Open Position
+        .modal-tabs
+          button.modal-tab.active#tab-jd(type="button") Job Description
+          button.modal-tab#tab-apply(type="button") Apply Now
+        .tab-panel.active#panel-jd
+          .jd-text#jd-text
+        .tab-panel#panel-apply
+          form#apply-form(enctype="multipart/form-data")
+            input(type="hidden" name="interviewId" id="apply-interview-id")
+            .form-group
+              label Your Full Name
+              input(type="text" name="name" id="apply-name" placeholder="Jane Smith" required)
+            .form-group
+              label Email Address
+              input(type="email" name="email" id="apply-email" placeholder="jane@example.com" required)
+            .form-group
+              label Resume (PDF, DOC, or DOCX — max 10 MB)
+              .file-drop#file-drop(onclick="document.getElementById('apply-file').click()")
+                input(type="file" id="apply-file" name="resume" accept=".pdf,.doc,.docx" required)
+                .file-drop-label
+                  | Drag & drop your resume here or
+                  br
+                  strong click to browse
+                .file-name-display#file-name
+            button.btn-submit#btn-submit(type="submit") Submit Application
+            .form-msg#form-msg(style="display:none")
+
+    script.
+      // ── Load jobs ──────────────────────────────────────────────
+      async function loadJobs() {
+        try {
+          const res = await fetch('/careers/jobs');
+          const jobs = await res.json();
+          const grid = document.getElementById('jobs-grid');
+          const stat = document.getElementById('stat-openings');
+          stat.textContent = jobs.length;
+
+          if (!jobs.length) {
+            grid.innerHTML = '<div class="jobs-empty"><h3>No open positions right now</h3><p>Check back soon — we\'re always growing.</p></div>';
+            return;
+          }
+
+          grid.innerHTML = jobs.map(j => {
+            const preview = (j.jd || 'No description provided.').slice(0, 180) + (j.jd && j.jd.length > 180 ? '…' : '');
+            const created = j.created_at ? new Date(j.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+            return `<div class="job-card">
+              <div class="job-card-header">
+                <div class="job-title">${esc(j.title)}</div>
+                <span class="job-badge">Open</span>
+              </div>
+              <div class="job-jd-preview">${esc(preview)}</div>
+              <div class="job-meta">
+                <span class="job-meta-item">📅 Posted ${esc(created)}</span>
+                <span class="job-meta-item">⚡ AI Screening</span>
+              </div>
+              <div class="job-actions">
+                <button class="btn-view" onclick='openModal(${JSON.stringify(j)}, "jd")'>View Details</button>
+                <button class="btn-apply" onclick='openModal(${JSON.stringify(j)}, "apply")'>Apply Now</button>
+              </div>
+            </div>`;
+          }).join('');
+        } catch (err) {
+          document.getElementById('jobs-grid').innerHTML = '<div class="jobs-empty"><h3>Failed to load positions</h3><p>Please refresh the page.</p></div>';
+        }
+      }
+
+      function esc(str) {
+        const d = document.createElement('div');
+        d.textContent = String(str || '');
+        return d.innerHTML;
+      }
+
+      // ── Modal ──────────────────────────────────────────────────
+      const overlay = document.getElementById('modal-overlay');
+      const tabJD = document.getElementById('tab-jd');
+      const tabApply = document.getElementById('tab-apply');
+      const panelJD = document.getElementById('panel-jd');
+      const panelApply = document.getElementById('panel-apply');
+
+      function openModal(job, activeTab) {
+        document.getElementById('modal-title').textContent = job.title;
+        document.getElementById('modal-subtitle').textContent = 'Open Position — AI Screened';
+        document.getElementById('jd-text').textContent = job.jd || 'No job description provided.';
+        document.getElementById('apply-interview-id').value = job.id;
+        resetForm();
+        switchTab(activeTab);
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeModal() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+
+      document.getElementById('modal-close').addEventListener('click', closeModal);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+      function switchTab(tab) {
+        if (tab === 'jd') {
+          tabJD.classList.add('active'); tabApply.classList.remove('active');
+          panelJD.classList.add('active'); panelApply.classList.remove('active');
+        } else {
+          tabApply.classList.add('active'); tabJD.classList.remove('active');
+          panelApply.classList.add('active'); panelJD.classList.remove('active');
+        }
+      }
+
+      tabJD.addEventListener('click', () => switchTab('jd'));
+      tabApply.addEventListener('click', () => switchTab('apply'));
+
+      // ── File drag & drop ───────────────────────────────────────
+      const fileDrop = document.getElementById('file-drop');
+      const fileInput = document.getElementById('apply-file');
+      const fileNameEl = document.getElementById('file-name');
+
+      fileInput.addEventListener('change', () => {
+        fileNameEl.textContent = fileInput.files[0] ? '✔ ' + fileInput.files[0].name : '';
+      });
+
+      fileDrop.addEventListener('dragover', (e) => { e.preventDefault(); fileDrop.classList.add('dragover'); });
+      fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
+      fileDrop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        fileDrop.classList.remove('dragover');
+        const dt = new DataTransfer();
+        dt.items.add(e.dataTransfer.files[0]);
+        fileInput.files = dt.files;
+        fileNameEl.textContent = '✔ ' + fileInput.files[0].name;
+      });
+
+      // ── Submit application ─────────────────────────────────────
+      document.getElementById('apply-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btn-submit');
+        const msg = document.getElementById('form-msg');
+        const interviewId = document.getElementById('apply-interview-id').value;
+
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        msg.style.display = 'none';
+
+        const fd = new FormData(e.target);
+
+        try {
+          const res = await fetch('/careers/apply/' + interviewId, {
+            method: 'POST',
+            body: fd,
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            msg.className = 'form-msg success';
+            msg.textContent = '✔ Application submitted! Check your email for next steps.';
+            msg.style.display = 'block';
+            btn.style.display = 'none';
+            // Reset file
+            fileInput.value = '';
+            fileNameEl.textContent = '';
+          } else {
+            throw new Error(data.error || 'Submission failed');
+          }
+        } catch (err) {
+          msg.className = 'form-msg error';
+          msg.textContent = '✖ ' + (err.message || 'Something went wrong. Please try again.');
+          msg.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Submit Application';
+        }
+      });
+
+      function resetForm() {
+        const form = document.getElementById('apply-form');
+        form.reset();
+        document.getElementById('file-name').textContent = '';
+        const msg = document.getElementById('form-msg');
+        msg.style.display = 'none';
+        const btn = document.getElementById('btn-submit');
+        btn.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Submit Application';
+      }
+
+      loadJobs();

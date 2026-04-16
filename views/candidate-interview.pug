@@ -1,0 +1,314 @@
+extends layout-candidate
+
+block content
+  .page-header
+    h1 Video Interview
+    form(action="/login/logout" method="POST" style="margin-left:auto")
+      button.btn-sm.btn-delete(type="submit") Logout
+
+  if alreadySubmitted
+    .card
+      h2 Submission Received
+      if status === 'VideoReceived'
+        p(style="color:var(--success)") Your video has been received and is being analyzed. We'll be in touch soon.
+      else if status === 'Done'
+        p(style="color:var(--success)") Your video has been reviewed. Thank you for completing the interview process!
+      else
+        p(style="color:var(--text-muted)") Your submission has already been received (status: #{status}).
+  else
+    .card
+      h2 Question
+      p.interview-question Tell me about yourself.
+
+    .card#recorder-card
+      h2 Record Your Response
+      p.hint(style="color:var(--text-muted);font-size:13px;margin-bottom:20px") Position yourself in front of the camera and speak clearly. Low-bandwidth mode is enabled to save tokens. Maximum recording time is 75 seconds.
+
+      //- Camera preview
+      .video-wrap
+        video#preview(autoplay muted playsinline)
+        video#playback(playsinline style="display:none")
+        .timer-badge#timer(style="display:none") 0:00
+
+      //- Status message
+      p#status-msg(style="font-size:13px;color:var(--text-muted);margin-top:12px;min-height:18px")
+
+      //- Buttons
+      .btn-row
+        button.btn#btn-start(type="button") ● Start Recording
+        button.btn#btn-stop(type="button" style="display:none;background:#ef4444") ■ Stop
+        button.btn#btn-retake(type="button" style="display:none;background:#64748b") ↩ Retake
+        button.btn#btn-upload(type="button" style="display:none") ⬆ Upload
+
+      //- Upload progress bar
+      .progress-wrap#progress-wrap(style="display:none")
+        .progress-bar#progress-bar
+        span#progress-label 0%
+
+  style.
+    .interview-question {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0;
+    }
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 560px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+    }
+    #preview, #playback {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .timer-badge {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: rgba(0,0,0,.65);
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      pointer-events: none;
+    }
+    .timer-badge.danger { color: var(--danger); }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .progress-wrap {
+      margin-top: 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      height: 28px;
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width .2s ease;
+    }
+    #progress-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      color: #fff;
+      pointer-events: none;
+    }
+
+  script.
+    const MAX_MS = 75 * 1000; // 75 seconds to keep Gemini usage low
+    const CAPTURE_CONSTRAINTS = {
+      video: {
+        width: { ideal: 640, max: 640 },
+        height: { ideal: 360, max: 360 },
+        frameRate: { ideal: 12, max: 15 },
+        facingMode: 'user'
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        channelCount: 1
+      }
+    };
+    const RECORDER_BITRATE = {
+      videoBitsPerSecond: 300000,
+      audioBitsPerSecond: 32000,
+      bitsPerSecond: 332000
+    };
+
+    const preview   = document.getElementById('preview');
+    const playback  = document.getElementById('playback');
+    const timerEl   = document.getElementById('timer');
+    const statusMsg = document.getElementById('status-msg');
+    const btnStart  = document.getElementById('btn-start');
+    const btnStop   = document.getElementById('btn-stop');
+    const btnRetake = document.getElementById('btn-retake');
+    const btnUpload = document.getElementById('btn-upload');
+    const progressWrap = document.getElementById('progress-wrap');
+    const progressBar  = document.getElementById('progress-bar');
+    const progressLabel = document.getElementById('progress-label');
+
+    let mediaStream = null;
+    let recorder    = null;
+    let chunks      = [];
+    let blob        = null;
+    let timerInterval = null;
+    let startTime   = 0;
+
+    // Request camera/mic on load
+    async function initCamera() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(CAPTURE_CONSTRAINTS);
+        preview.srcObject = mediaStream;
+      } catch (e) {
+        statusMsg.textContent = 'Camera access denied. Please allow camera and microphone permissions.';
+        statusMsg.style.color = 'var(--danger)';
+        btnStart.disabled = true;
+      }
+    }
+    initCamera();
+
+    function formatTime(ms) {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      return m + ':' + String(s % 60).padStart(2, '0');
+    }
+
+    // ── Start Recording ──────────────────────────────────────
+    btnStart.addEventListener('click', () => {
+      if (!mediaStream) return;
+      chunks = [];
+      blob   = null;
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm')
+        ? 'video/webm'
+        : '';
+
+      const recorderOptions = mimeType
+        ? { mimeType, ...RECORDER_BITRATE }
+        : { ...RECORDER_BITRATE };
+
+      recorder = new MediaRecorder(mediaStream, recorderOptions);
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = onRecordingStopped;
+      recorder.start(1000); // larger chunks and low bitrate reduce upload size
+
+      startTime = Date.now();
+      timerEl.style.display = 'block';
+      timerEl.className = 'timer-badge';
+      timerInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        timerEl.textContent = formatTime(elapsed);
+        if (elapsed >= MAX_MS - 10000) timerEl.classList.add('danger'); // warn last 10s
+        if (elapsed >= MAX_MS) stopRecording();
+      }, 500);
+
+      btnStart.style.display  = 'none';
+      btnStop.style.display   = 'inline-flex';
+      btnRetake.style.display = 'none';
+      btnUpload.style.display = 'none';
+      statusMsg.textContent   = 'Recording in low-bandwidth mode… speak clearly.';
+      statusMsg.style.color   = 'var(--warning)';
+    });
+
+    // ── Stop Recording ───────────────────────────────────────
+    btnStop.addEventListener('click', stopRecording);
+
+    function stopRecording() {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+      clearInterval(timerInterval);
+    }
+
+    function onRecordingStopped() {
+      // Always force video/webm — MediaRecorder.mimeType is unreliable across browsers
+      // and may return text/plain, empty string, or other unexpected values.
+      blob = new Blob(chunks, { type: 'video/webm' });
+
+      // Show playback
+      const url = URL.createObjectURL(blob);
+      playback.src = url;
+      playback.style.display = 'block';
+      preview.style.display  = 'none';
+      timerEl.style.display  = 'none';
+
+      btnStop.style.display   = 'none';
+      btnRetake.style.display = 'inline-flex';
+      btnUpload.style.display = 'inline-flex';
+      statusMsg.textContent   = 'Recording complete. Review your video, then upload or retake.';
+      statusMsg.style.color   = 'var(--success)';
+    }
+
+    // ── Retake ───────────────────────────────────────────────
+    btnRetake.addEventListener('click', () => {
+      blob = null;
+      chunks = [];
+      if (playback.src) { URL.revokeObjectURL(playback.src); playback.src = ''; }
+      playback.style.display = 'none';
+      preview.style.display  = 'block';
+      timerEl.textContent    = '0:00';
+
+      btnRetake.style.display = 'none';
+      btnUpload.style.display = 'none';
+      btnStart.style.display  = 'inline-flex';
+      statusMsg.textContent   = '';
+    });
+
+    // ── Upload ───────────────────────────────────────────────
+    btnUpload.addEventListener('click', async () => {
+      if (!blob) return;
+
+      const file = new File([blob], 'interview.webm', { type: 'video/webm' });
+      const fd   = new FormData();
+      fd.append('video', file);
+
+      btnUpload.disabled  = true;
+      btnRetake.disabled  = true;
+      progressWrap.style.display = 'block';
+      statusMsg.textContent = 'Uploading…';
+      statusMsg.style.color = 'var(--text-muted)';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/candidate/interview/upload');
+
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          progressBar.style.width  = pct + '%';
+          progressLabel.textContent = pct + '%';
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.success) {
+              statusMsg.textContent = '✔ Uploaded successfully! Redirecting…';
+              statusMsg.style.color = 'var(--success)';
+              progressBar.style.width = '100%';
+              progressLabel.textContent = '100%';
+              setTimeout(() => { window.location.href = '/candidate/dashboard'; }, 1500);
+              return;
+            }
+          } catch {}
+        }
+        let msg = 'Upload failed.';
+        try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+        statusMsg.textContent = '✖ ' + msg;
+        statusMsg.style.color = 'var(--danger)';
+        btnUpload.disabled  = false;
+        btnRetake.disabled  = false;
+        progressWrap.style.display = 'none';
+      };
+
+      xhr.onerror = () => {
+        statusMsg.textContent = '✖ Network error. Please try again.';
+        statusMsg.style.color = 'var(--danger)';
+        btnUpload.disabled  = false;
+        btnRetake.disabled  = false;
+        progressWrap.style.display = 'none';
+      };
+
+      xhr.send(fd);
+    });
