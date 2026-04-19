@@ -342,6 +342,10 @@ html(lang="en")
         margin-right: 6px;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes slideIn {
+        from { transform: translateX(400px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
       .embed-status { display: flex; align-items: center; }
 
       .input-row {

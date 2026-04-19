@@ -29,12 +29,9 @@ block content
 
       button.btn(type="submit") Save Settings
 
-    //- Embed progress panel (hidden by default)
-    #embed-panel(style="display:none;margin-top:16px")
-      .embed-status
-        span#embed-spinner.spinner(style="display:none")
-        span#embed-label(style="font-size:13px;color:var(--text-muted)")
-      pre#embed-log(style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 16px;font-size:12px;color:var(--text-muted);max-height:200px;overflow-y:auto;margin-top:10px;white-space:pre-wrap")
+    //- Toast notification (hidden by default)
+    #settings-toast(style="display:none;position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 24px;font-size:14px;z-index:9999;animation:slideIn .3s ease-out;box-shadow:0 4px 12px rgba(0,0,0,.3)")
+      span#toast-message
 
   //- ── Trigger Screening ───────────────────────────────────
   .card
@@ -179,6 +176,17 @@ block content
     const ROLE_REQUIRED_SKILLS = !{JSON.stringify(interview.required_skills || '')};
     const ROLE_SALARY_RANGE = !{JSON.stringify(interview.salary_range || '')};
     const tbody = document.getElementById('candidates-body');
+
+    window.showToast = function(message, duration = 3000) {
+      const toast = document.getElementById('settings-toast');
+      const msg = document.getElementById('toast-message');
+      if (!toast || !msg) return;
+      msg.textContent = message;
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, duration);
+    };
 
     function badgeClass(status) {
       return 'badge badge-' + (status || '').toLowerCase().replace(/\s+/g, '');
@@ -336,80 +344,20 @@ block content
 
     setInterval(poll, 5000);
 
-    // ── Embed progress tracking ──────────────────────────
+    // ── Settings form feedback with toast ────────────
     const settingsForm = document.querySelector('form[action$="/settings"]');
-    const embedPanel = document.getElementById('embed-panel');
-    const embedSpinner = document.getElementById('embed-spinner');
-    const embedLabel = document.getElementById('embed-label');
-    const embedLog = document.getElementById('embed-log');
-    let embedPollTimer = null;
+    const settingsToast = document.getElementById('settings-toast');
 
     if (settingsForm) {
-      settingsForm.addEventListener('submit', function() {
-        // Show the panel after form submits
-        setTimeout(() => {
-          embedPanel.style.display = 'block';
-          embedSpinner.style.display = 'inline-block';
-          embedLabel.textContent = ' Embedding JD...';
-          embedLog.textContent = 'Starting...\n';
-          startEmbedPoll();
-        }, 500);
+      settingsForm.addEventListener('submit', async function(e) {
+        if (settingsToast) {
+          window.showToast('⏳ Saving...');
+          setTimeout(() => {
+            window.showToast('✔ Settings saved', 3000);
+          }, 500);
+        }
       });
     }
-
-    function startEmbedPoll() {
-      if (embedPollTimer) clearInterval(embedPollTimer);
-      embedPollTimer = setInterval(pollEmbedStatus, 1000);
-    }
-
-    async function pollEmbedStatus() {
-      try {
-        const res = await fetch(`/admin/interviews/${INTERVIEW_ID}/embed-status`);
-        if (!res.ok) return;
-        const data = await res.json();
-        embedLog.textContent = data.logs.join('\n');
-        embedLog.scrollTop = embedLog.scrollHeight;
-
-        if (data.status === 'done') {
-          embedSpinner.style.display = 'none';
-          embedLabel.textContent = '✔ Embedding complete';
-          embedLabel.style.color = 'var(--success)';
-          clearInterval(embedPollTimer);
-        } else if (data.status === 'error') {
-          embedSpinner.style.display = 'none';
-          embedLabel.textContent = '✖ Embedding failed';
-          embedLabel.style.color = 'var(--danger)';
-          clearInterval(embedPollTimer);
-        } else {
-          embedSpinner.style.display = 'inline-block';
-          embedLabel.textContent = ' Embedding JD...';
-          embedLabel.style.color = 'var(--text-muted)';
-        }
-      } catch { /* ignore */ }
-    }
-
-    // Check on page load in case an embed is in progress
-    (async function() {
-      try {
-        const res = await fetch(`/admin/interviews/${INTERVIEW_ID}/embed-status`);
-        const data = await res.json();
-        if (data.status === 'running' || data.status === 'done' || data.status === 'error') {
-          embedPanel.style.display = 'block';
-          embedLog.textContent = data.logs.join('\n');
-          if (data.status === 'running') {
-            embedSpinner.style.display = 'inline-block';
-            embedLabel.textContent = ' Embedding JD...';
-            startEmbedPoll();
-          } else if (data.status === 'done') {
-            embedLabel.textContent = '✔ Embedding complete';
-            embedLabel.style.color = 'var(--success)';
-          } else if (data.status === 'error') {
-            embedLabel.textContent = '✖ Embedding failed';
-            embedLabel.style.color = 'var(--danger)';
-          }
-        }
-      } catch {}
-    })();
 
     const slider = document.getElementById('thresholdSlider');
     const valEl  = document.getElementById('thresholdVal');
