@@ -88,7 +88,15 @@ router.post("/apply/:interviewId", resumeUpload.single("resume"), async (req, re
         config
       )
       .then(() => console.log(`[Careers] Pipeline completed for ${threadId} (${email})`))
-      .catch((err) => console.error(`[Careers] Pipeline error for ${threadId}:`, err.message));
+      .catch(async (err) => {
+        console.error(`[Careers] Pipeline error for ${threadId}:`, err.message);
+        // Update status to Error if pipeline fails
+        try {
+          await query("UPDATE candidates SET status = 'Error' WHERE thread_id = $1", [threadId]);
+        } catch (dbErr) {
+          console.error(`[Careers] Failed to update status to Error for ${threadId}:`, dbErr.message);
+        }
+      });
 
     res.json({
       success: true,

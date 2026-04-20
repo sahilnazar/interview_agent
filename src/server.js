@@ -9,7 +9,7 @@ import { createGraph } from "./graph/index.js";
 import { createApp } from "./app.js";
 import { startCVWatcher } from "./services/watcher.js";
 import { startEmailIngest } from "./services/email-ingest.js";
-import { startAutoSchedulePassedCandidates } from "./services/scheduler.js";
+import { startAutoSchedulePassedCandidates, startBulkOutcomeEmailWorker } from "./services/scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CVS_DIR = path.join(__dirname, "..", "cvs");
@@ -27,6 +27,7 @@ async function main() {
   startCVWatcher(CVS_DIR, CVS_PROCESSED_DIR, compiledGraph);
   startEmailIngest(path.join(CVS_DIR, "auto"));
   startAutoSchedulePassedCandidates();
+  startBulkOutcomeEmailWorker();
 
   app.listen(PORT, () => {
     console.log(`Interview Assistant running → http://localhost:${PORT}/admin`);

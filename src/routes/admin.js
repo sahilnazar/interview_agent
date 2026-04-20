@@ -9,6 +9,7 @@ import { reselectCandidateById, rejectCandidateById } from "../graph/actions.js"
 import { storeJDChunks, getEmbedStatus } from "../services/embeddings.js";
 import { sendRejectionEmail } from "../services/email.js";
 import { restartEmailIngest } from "../services/email-ingest.js";
+import { sendBulkOutcomeEmails } from "../services/scheduler.js";
 
 const router = Router();
 const resumeUpload = multer({ storage: multer.memoryStorage() });
@@ -40,7 +41,7 @@ router.get("/", async (_req, res, next) => {
 // POST /admin/settings — save global embedding settings
 router.post("/settings", async (req, res, next) => {
   try {
-    const { embedding_provider, ollama_base_url } = req.body;
+    const { embedding_provider, ollama_base_url, bulk_mail_enabled, bulk_mail_send_time } = req.body;
     if (embedding_provider) {
       await query(
         "INSERT INTO settings (key, value) VALUES ('embedding_provider', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
@@ -51,6 +52,16 @@ router.post("/settings", async (req, res, next) => {
       await query(
         "INSERT INTO settings (key, value) VALUES ('ollama_base_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
         [ollama_base_url.trim() || "http://localhost:11434"]
+      );
+    }
+    await query(
+      "INSERT INTO settings (key, value) VALUES ('bulk_mail_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [bulk_mail_enabled === 'on' ? 'true' : 'false']
+    );
+    if (bulk_mail_send_time !== undefined) {
+      await query(
+        "INSERT INTO settings (key, value) VALUES ('bulk_mail_send_time', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+        [bulk_mail_send_time.trim() || '18:00']
       );
     }
     res.redirect("/admin");
@@ -116,13 +127,45 @@ router.get("/interviews/:id", async (req, res, next) => {
     if (!intRow.rows.length) return res.status(404).send("Interview not found");
 
     const candidates = await query(
-      "SELECT thread_id, email, status, resume_score, summary, english_score, confidence_score, skills, salary_expectation, video_summary, rejection_sent, assignment_method, match_confidence, created_at, video_path FROM candidates WHERE interview_id = $1 ORDER BY created_at DESC",
+      `SELECT c.thread_id, c.email, c.status, c.resume_score, c.summary, c.english_score, c.confidence_score,
+              c.skills, c.salary_expectation, c.video_summary, c.rejection_sent, c.assignment_method,
+              c.match_confidence, c.created_at, c.video_path, c.final_result,
+              EXISTS(
+                SELECT 1 FROM scheduled_interviews si
+                WHERE si.candidate_id = c.thread_id
+                  AND si.status NOT IN ('cancelled', 'rejected_candidate', 'rejected_interviewer')
+              ) AS scheduled
+       FROM candidates c
+       WHERE c.interview_id = $1
+       ORDER BY c.created_at DESC`,
       [id]
     );
+
+    const pendingSelected = await query(
+      "SELECT COUNT(*) FROM candidates WHERE interview_id = $1 AND final_result = 'pass' AND selected_email_sent = FALSE",
+      [id]
+    );
+    const pendingNotSelected = await query(
+      "SELECT COUNT(*) FROM candidates WHERE interview_id = $1 AND final_result = 'fail' AND not_selected_email_sent = FALSE",
+      [id]
+    );
+
+    const settingsRows = await query(
+      "SELECT key, value FROM settings WHERE key IN ('bulk_mail_enabled', 'bulk_mail_send_time', 'bulk_mail_last_sent')"
+    );
+    const bulkSettings = {};
+    for (const row of settingsRows.rows) {
+      bulkSettings[row.key] = row.value;
+    }
 
     res.render("interview", {
       interview: intRow.rows[0],
       candidates: candidates.rows,
+      bulkMail: {
+        pendingSelected: parseInt(pendingSelected.rows[0].count, 10),
+        pendingNotSelected: parseInt(pendingNotSelected.rows[0].count, 10),
+        ...bulkSettings,
+      },
     });
   } catch (err) {
     next(err);
@@ -263,6 +306,18 @@ router.post("/interviews/:id/bulk-reject-email", async (req, res, next) => {
     }
 
     console.log(`Bulk rejection: sent ${sent}/${result.rows.length} emails for interview ${id}`);
+    res.redirect(`/admin/interviews/${id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/interviews/:id/bulk-outcome-email — send selection/fail outcome emails
+router.post("/interviews/:id/bulk-outcome-email", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await sendBulkOutcomeEmails(id);
+    console.log(`Bulk outcome email: selected=${result.passSent}/${result.passTotal}, notSelected=${result.failSent}/${result.failTotal} for interview ${id}`);
     res.redirect(`/admin/interviews/${id}`);
   } catch (err) {
     next(err);

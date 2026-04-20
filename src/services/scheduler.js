@@ -14,7 +14,7 @@
 
 import crypto from "node:crypto";
 import { query } from "../config/db.js";
-import { sendEmail } from "./email.js";
+import { sendEmail, sendSelectionEmail, sendNotSelectedEmail } from "./email.js";
 import { callWithRetry, getGroqModel } from "../graph/helpers.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
@@ -271,6 +271,14 @@ export async function scheduleCandidate(candidateId, interviewId) {
         interviewerToken,
       ],
     );
+
+    if (slot.id) {
+      await query(
+        "UPDATE interviewer_slots SET status = 'booked' WHERE id = $1",
+        [slot.id],
+      );
+    }
+
     created.push({
       ...ins.rows[0],
       candidateToken,
@@ -410,6 +418,113 @@ export function startAutoSchedulePassedCandidates(intervalMs = AUTO_SCHEDULE_INT
 
   console.log(`[AutoSchedule] Worker started (interval=${intervalMs}ms)`);
   return autoScheduleTimer;
+}
+
+async function getBulkMailSettings() {
+  const rows = await query(
+    "SELECT key, value FROM settings WHERE key IN ('bulk_mail_enabled', 'bulk_mail_send_time', 'bulk_mail_last_sent')"
+  );
+  const settings = {};
+  for (const row of rows.rows) {
+    settings[row.key] = row.value;
+  }
+  return settings;
+}
+
+function formatDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function shouldRunBulkMail(settings) {
+  if (settings.bulk_mail_enabled !== 'true') return false;
+  const timeValue = settings.bulk_mail_send_time || '18:00';
+  const [hour, minute] = timeValue.split(':').map((value) => parseInt(value, 10));
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return false;
+
+  const now = new Date();
+  const todayTarget = new Date(now);
+  todayTarget.setHours(hour, minute, 0, 0);
+
+  if (now < todayTarget) return false;
+  const lastSent = settings.bulk_mail_last_sent || '';
+  return lastSent !== formatDateKey(todayTarget);
+}
+
+export async function sendBulkOutcomeEmails(interviewId = null) {
+  const passParams = [];
+  const failParams = [];
+  let passQuery = "SELECT thread_id, email FROM candidates WHERE final_result = 'pass' AND selected_email_sent = FALSE";
+  let failQuery = "SELECT thread_id, email FROM candidates WHERE final_result = 'fail' AND not_selected_email_sent = FALSE";
+
+  if (interviewId) {
+    passQuery += " AND interview_id = $1";
+    failQuery += " AND interview_id = $1";
+    passParams.push(interviewId);
+    failParams.push(interviewId);
+  }
+
+  const passResult = await query(passQuery, passParams);
+  const failResult = await query(failQuery, failParams);
+
+  let passSent = 0;
+  let failSent = 0;
+
+  for (const row of passResult.rows) {
+    try {
+      await sendSelectionEmail(row.email);
+      await query("UPDATE candidates SET selected_email_sent = TRUE WHERE thread_id = $1", [row.thread_id]);
+      passSent += 1;
+    } catch (err) {
+      console.error(`Failed to send selected email to ${row.email}:`, err.message || err);
+    }
+  }
+
+  for (const row of failResult.rows) {
+    try {
+      await sendNotSelectedEmail(row.email);
+      await query("UPDATE candidates SET not_selected_email_sent = TRUE WHERE thread_id = $1", [row.thread_id]);
+      failSent += 1;
+    } catch (err) {
+      console.error(`Failed to send not-selected email to ${row.email}:`, err.message || err);
+    }
+  }
+
+  return { passSent, failSent, passTotal: passResult.rows.length, failTotal: failResult.rows.length };
+}
+
+export async function sendBulkOutcomeEmailsIfDue() {
+  const settings = await getBulkMailSettings();
+  if (!shouldRunBulkMail(settings)) {
+    return { ran: false };
+  }
+
+  const result = await sendBulkOutcomeEmails();
+  const todayKey = formatDateKey(new Date());
+  await query(
+    "INSERT INTO settings (key, value) VALUES ('bulk_mail_last_sent', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+    [todayKey]
+  );
+
+  console.log(`[BulkMail] Sent pass=${result.passSent}/${result.passTotal}, fail=${result.failSent}/${result.failTotal} at ${todayKey}`);
+  return { ran: true, ...result };
+}
+
+let bulkMailTimer = null;
+export function startBulkOutcomeEmailWorker(intervalMs = 60000) {
+  if (bulkMailTimer) return bulkMailTimer;
+
+  sendBulkOutcomeEmailsIfDue().catch((err) => {
+    console.error('[BulkMail] Initial run failed:', err.message || err);
+  });
+
+  bulkMailTimer = setInterval(() => {
+    sendBulkOutcomeEmailsIfDue().catch((err) => {
+      console.error('[BulkMail] Tick failed:', err.message || err);
+    });
+  }, intervalMs);
+
+  console.log(`[BulkMail] Worker started (interval=${intervalMs}ms)`);
+  return bulkMailTimer;
 }
 
 // ─── Email helpers ────────────────────────────────────────────────────────

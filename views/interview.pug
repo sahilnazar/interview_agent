@@ -54,6 +54,9 @@ block content
       if rejectedUnsent > 0
         form(action=`/admin/interviews/${interview.id}/bulk-reject-email` method="POST" style="display:inline" onsubmit=`return confirm('Send rejection emails to ${rejectedUnsent} candidate(s)?')`)
           button.btn.btn-bulk-reject(type="submit") ✉ Send Rejection Emails (#{rejectedUnsent})
+      if bulkMail && (bulkMail.pendingSelected || bulkMail.pendingNotSelected)
+        form(action=`/admin/interviews/${interview.id}/bulk-outcome-email` method="POST" style="display:inline;margin-left:10px")
+          button.btn(type="submit") ✉ Send Outcome Emails (#{bulkMail.pendingSelected + bulkMail.pendingNotSelected})
 
     div(style="overflow-x:auto")
       table
@@ -61,6 +64,7 @@ block content
           tr
             th Email
             th Status
+            th Result
             th Video
             th Assigned
             th Resume Score
@@ -86,6 +90,13 @@ block content
                 if hasDetails
                   div(style="margin-top:8px")
                     button.summary-toggle(type="button" data-target=`summary-${c.thread_id}`) ▶ Details
+              td
+                if c.final_result === 'pass'
+                  span.badge.badge-success Selected
+                else if c.final_result === 'fail'
+                  span.badge.badge-danger Not Selected
+                else
+                  span(style="color:var(--text-muted);font-size:12px") Processing
               td
                 if videoStatus === 'Submitted' || videoStatus === 'Processing'
                   span(style="color:var(--warning);font-size:12px") ⏳ #{videoStatus}
@@ -119,7 +130,7 @@ block content
                 if c.status === 'Rejected'
                   form(action=`/admin/interviews/${interview.id}/reselect/${c.thread_id}` method="POST" style="display:inline")
                     button.btn-sm.btn-invite(type="submit") ↩ Re-select
-                if c.status === 'Done'
+                if c.status === 'Done' && !c.scheduled
                   form(action=`/admin/interviewers/schedule/${c.thread_id}` method="POST" style="display:inline")
                     button.btn-sm(type="submit" style="background:var(--accent)") 📅 Schedule
                 if c.status === 'Screened' || c.status === 'AwaitingVideo' || c.status === 'Done'
@@ -129,7 +140,7 @@ block content
                   button.btn-sm.btn-delete(type="submit") ✕ Delete
             if parsed || c.video_summary || c.salary_expectation
               tr.summary-row(id=`summary-${c.thread_id}` style="display:none")
-                td(colspan="10")
+                td(colspan="11")
                   .summary-box
                     if c.video_summary
                       h4 Video Analysis
@@ -297,7 +308,7 @@ block content
         const matching = parsed ? (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('') : '';
         const missing = parsed ? (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('') : '';
         summaryRow = `<tr class="summary-row" id="summary-${c.thread_id}" style="display:none">
-          <td colspan="10"><div class="summary-box">
+          <td colspan="11"><div class="summary-box">
             ${c.video_summary ? `<h4>Video Analysis</h4><p>${esc(c.video_summary)}</p>` : '<h4>Video Analysis</h4><p>Summary not available yet.</p>'}
             <p><strong>Salary Expectation:</strong> ${esc(c.salary_expectation || 'Not mentioned')}</p>
             ${ROLE_REQUIRED_SKILLS ? `<p><strong>Required Skills:</strong> ${esc(ROLE_REQUIRED_SKILLS)}</p>` : ''}

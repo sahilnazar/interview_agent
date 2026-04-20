@@ -150,7 +150,8 @@ export async function sendInvite(state) {
 
   // Generate login credentials
   const loginToken = crypto.randomBytes(4).toString("hex"); // 8-char hex
-  const plainPassword = crypto.randomBytes(6).toString("base64url"); // ~8 chars
+  const plainPassword = crypto.randomBytes(6).toString("base64url");
+  console.log(`[${threadId}] Generated password: ${plainPassword}`); // ~8 chars
   const passwordHash = await bcrypt.hash(plainPassword, 10);
 
   await query(

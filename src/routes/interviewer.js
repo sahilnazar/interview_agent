@@ -267,6 +267,46 @@ router.post(
   },
 );
 
+// ─── POST /interviewer/schedule/:id/result ───────────────────────────────
+router.post("/schedule/:id/result", requireInterviewer, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { result } = req.body;
+    if (!['pass', 'fail'].includes(result)) {
+      return res.redirect('/interviewer/calendar');
+    }
+
+    const schedule = await query(
+      `SELECT si.*, c.thread_id AS candidate_thread_id
+       FROM scheduled_interviews si
+       JOIN candidates c ON c.thread_id = si.candidate_id
+       WHERE si.id = $1 AND si.interviewer_id = $2`,
+      [id, req.session.interviewer.id],
+    );
+    if (!schedule.rows.length) return res.status(404).send('Not found');
+
+    const si = schedule.rows[0];
+    if (si.status !== 'confirmed') {
+      return res.redirect('/interviewer/calendar');
+    }
+
+    await query(
+      "UPDATE scheduled_interviews SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2",
+      [result, id],
+    );
+
+    const candidateStatus = result === 'pass' ? 'Passed' : 'Failed';
+    await query(
+      `UPDATE candidates SET final_result = $1, final_result_at = NOW(), status = $2 WHERE thread_id = $3`,
+      [result, candidateStatus, si.candidate_id],
+    );
+
+    res.redirect('/interviewer/calendar');
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /interviewer/confirm/:token ─────────────────────────────────────
 // Token-based confirmation link in email (no login required)
 router.get("/confirm/:token", async (req, res, next) => {

@@ -49,6 +49,32 @@ export async function sendInvitationEmail(email, threadId, password) {
   );
 }
 
+export async function sendSelectionEmail(email) {
+  await sendEmail(
+    email,
+    "Interview Outcome — Selected",
+    `<div style="font-family:sans-serif;max-width:600px">
+      <h2>Congratulations!</h2>
+      <p>We are excited to let you know that you have been selected to move forward in the process.</p>
+      <p>Our team will contact you with the next steps shortly.</p>
+      <p style="color:#888;font-size:12px">Thank you for interviewing with us.</p>
+    </div>`
+  );
+}
+
+export async function sendNotSelectedEmail(email) {
+  await sendEmail(
+    email,
+    "Interview Outcome — Not Selected",
+    `<div style="font-family:sans-serif;max-width:600px">
+      <h2>Thank you for interviewing</h2>
+      <p>We appreciate the time you invested in our interview process.</p>
+      <p>After a careful review, we have decided not to move forward with your application.</p>
+      <p>We wish you the best in your career search.</p>
+    </div>`
+  );
+}
+
 export async function sendRejectionEmail(email) {
   await sendEmail(
     email,

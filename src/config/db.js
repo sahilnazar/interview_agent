@@ -192,6 +192,9 @@ export async function initDB() {
     ['imap_password', ''],
     ['imap_poll_interval', '60'],
     ['imap_folder', 'INBOX'],
+    ['bulk_mail_enabled', 'false'],
+    ['bulk_mail_send_time', '18:00'],
+    ['bulk_mail_last_sent', ''],
   ];
   for (const [key, value] of imapDefaults) {
     await query(
@@ -246,6 +249,42 @@ export async function initDB() {
   await query(`
     DO $$ BEGIN
       ALTER TABLE candidates ADD COLUMN IF NOT EXISTS match_confidence REAL;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS final_result TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS final_result_at TIMESTAMPTZ;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS selected_email_sent BOOLEAN DEFAULT FALSE;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS not_selected_email_sent BOOLEAN DEFAULT FALSE;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE scheduled_interviews ADD COLUMN IF NOT EXISTS result TEXT;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
+      ALTER TABLE scheduled_interviews ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$
   `);

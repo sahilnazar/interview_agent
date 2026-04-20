@@ -319,16 +319,23 @@ router.post("/schedule/accept/:token", async (req, res, next) => {
 
     const slotStatus = guard.rows[0].slot_status;
 
-    if (si.slot_id && slotStatus !== "available") {
+    if (si.slot_id && slotStatus !== "available" && slotStatus !== "booked") {
       return res.status(409).send("Selected time slot is no longer available");
     }
 
     await query(
-      `UPDATE scheduled_interviews
-       SET status = 'cancelled'
-       WHERE candidate_id = $1
-         AND status = 'pending_candidate'
-         AND id != $2`,
+      `WITH released AS (
+         UPDATE scheduled_interviews
+         SET status = 'cancelled'
+         WHERE candidate_id = $1
+           AND status = 'pending_candidate'
+           AND id != $2
+         RETURNING slot_id
+       )
+       UPDATE interviewer_slots
+       SET status = 'available'
+       WHERE id = ANY(SELECT slot_id FROM released)
+         AND id IS NOT NULL`,
       [si.candidate_id, si.id]
     );
 

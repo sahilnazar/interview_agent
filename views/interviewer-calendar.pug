@@ -98,6 +98,22 @@ html(lang="en")
                       form(action=`/interviewer/schedule/${s.id}/respond` method="POST" style="display:inline;margin-left:6px")
                         input(type="hidden" name="decision" value="reject")
                         button.btn-sm.btn-danger(type="submit") ✗ Decline
+                    else if s.status === 'pending_candidate'
+                      span(style="color:var(--text-muted);font-size:12px") Awaiting candidate
+                    else if s.status === 'confirmed'
+                      form(action=`/interviewer/schedule/${s.id}/result` method="POST" style="display:inline")
+                        input(type="hidden" name="result" value="pass")
+                        button.btn-sm.btn-success(type="submit") Mark Pass
+                      form(action=`/interviewer/schedule/${s.id}/result` method="POST" style="display:inline;margin-left:6px")
+                        input(type="hidden" name="result" value="fail")
+                        button.btn-sm.btn-danger(type="submit") Mark Fail
+                    else if s.status === 'completed'
+                      if s.result === 'pass'
+                        span.badge.badge-success Passed
+                      else if s.result === 'fail'
+                        span.badge.badge-danger Failed
+                      else
+                        span.badge.badge-pending Completed
         else
           p(style="color:var(--text-muted);padding:20px 0;text-align:center") No scheduled interviews yet.
 
