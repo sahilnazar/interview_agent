@@ -495,6 +495,39 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
   );
   if (!candidateResult.rows.length) throw new Error("Candidate not found");
 
+  // Apply the same HR gate used by manual scheduling.
+  const suggestions = await suggestInterviewersForCandidate(candidateId, interviewId, 5);
+  const topMatch = suggestions[0]?.interviewer_match_percent || 0;
+  if (suggestions.length > 0 && topMatch < INTERVIEWER_MATCH_THRESHOLD) {
+    const pendingRequest = await query(
+      `SELECT id
+       FROM interviewer_assignment_requests
+       WHERE candidate_id = $1
+         AND interview_id = $2
+         AND status = 'pending'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [candidateId, interviewId],
+    );
+
+    if (!pendingRequest.rows.length) {
+      const reason = `Low-skill match (${topMatch.toFixed(0)}%) — HR review required`;
+      const requestId = await createInterviewerAssignmentRequest(
+        candidateId,
+        interviewId,
+        suggestions,
+        reason,
+      );
+      return { scheduled: false, reason: "hr_review_required", requestId };
+    }
+
+    return {
+      scheduled: false,
+      reason: "hr_review_pending",
+      requestId: pendingRequest.rows[0].id,
+    };
+  }
+
   const slots = await findAvailableSlots(interviewId, candidateId, 1);
   if (!slots.length) {
     return { scheduled: false, reason: "no_slots" };
