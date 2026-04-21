@@ -1,0 +1,107 @@
+extends layout
+
+block content
+  .page-header
+    a.back-link(href="/admin/hr-requests") ← Back to All Requests
+    h1 HR Assignment Request Detail
+
+  - const suggested = Array.isArray(request.suggested_interviewers) ? request.suggested_interviewers : []
+  - const selectedInterviewer = suggested.find(s => s.interviewer_id === request.selected_interviewer_id)
+
+  .card
+    h2 Request Information
+    .input-row
+      div
+        label Candidate Email
+        span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px")= request.candidate_email
+      div
+        label Interview Title
+        span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px")= request.interview_title
+    .input-row
+      div
+        label Status
+        - const statusBadgeClass = request.status === 'pending' ? 'badge-warning' : request.status === 'approved' ? 'badge-success' : 'badge-danger'
+        - const statusLabel = request.status === 'pending' ? 'Pending' : request.status === 'approved' ? 'Approved' : 'Rejected'
+        span(class=`badge ${statusBadgeClass}` style="padding:8px 12px")= statusLabel
+      div
+        label Reason
+        span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px")= request.reason || 'No reason provided'
+
+  if request.status === 'pending'
+    .card
+      h2 Suggested Interviewers
+      if suggested && suggested.length
+        div(style="overflow-x:auto")
+          table
+            thead
+              tr
+                th.actions-cell(style="width:100px") Select
+                th Name
+                th Email
+                th Department
+                th Skills
+                th Match %
+            tbody
+              each s in suggested
+                tr
+                  td.actions-cell
+                    form(action=`/admin/hr-requests/${request.id}/approve/${s.interviewer_id}` method="POST" style="display:inline")
+                      textarea(name="notes" placeholder="Approval notes (optional)" style="display:none")
+                      button.btn-sm.btn-invite(type="submit") Approve
+                  td= s.interviewer_name
+                  td= s.interviewer_email
+                  td= s.department || '—'
+                  td
+                    if s.skills && s.skills.length
+                      each sk in s.skills
+                        span.skill-chip= sk
+                    else
+                      span(style="color:var(--text-muted)") —
+                  td(style="text-align:center;font-weight:600;color:var(--accent)")= s.interviewer_match_percent.toFixed(0) + '%'
+      else
+        p(style="color:var(--text-muted)") No suggested interviewers available.
+
+    .card
+      h2 Reject Request
+      form(action=`/admin/hr-requests/${request.id}/reject` method="POST" onsubmit="return confirm('Reject this HR assignment request? The system will not auto-schedule this candidate until re-evaluated.')")
+        label Rejection Notes
+        textarea(name="notes" placeholder="Why is this request being rejected?" style="height:100px") 
+        button.btn(type="submit" style="background:var(--danger);margin-top:12px") ✗ Reject Request
+
+  else if request.status === 'approved'
+    .card
+      h2 Approval Confirmed
+      p(style="color:var(--success);font-size:14px;margin-bottom:16px") ✓ This request has been approved.
+      if selectedInterviewer
+        .input-row
+          div
+            label Selected Interviewer
+            span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px")= selectedInterviewer.interviewer_name
+          div
+            label Match Score
+            span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px")= selectedInterviewer.interviewer_match_percent.toFixed(0) + '%'
+      if request.approval_notes
+        label Approval Notes
+        span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px")= request.approval_notes
+
+  else if request.status === 'rejected'
+    .card
+      h2 Request Rejected
+      p(style="color:var(--danger);font-size:14px;margin-bottom:16px") ✗ This request has been rejected.
+      if request.approval_notes
+        label Rejection Notes
+        span(style="display:block;padding:12px;background:rgba(10,10,15,0.8);border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px")= request.approval_notes
+
+  style.
+    .badge-warning { background: rgba(255,165,0,.2); color: var(--warning); }
+    .badge-success { background: rgba(0,255,136,.2); color: var(--success); }
+    .badge-danger { background: rgba(255,71,87,.2); color: var(--danger); }
+    .skill-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      background: rgba(0,212,255,.15);
+      color: var(--accent);
+      border-radius: 6px;
+      font-size: 11px;
+      margin: 2px;
+    }

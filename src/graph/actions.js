@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import bcrypt from "bcrypt";
 
 import { query } from "../config/db.js";
 import { sendInvitationEmail, sendRejectionEmail } from "../services/email.js";
@@ -47,8 +49,24 @@ export async function reselectCandidateById(threadId) {
   const row = await query("SELECT email, status FROM candidates WHERE thread_id = $1", [threadId]);
   if (!row.rows.length) throw new Error("Candidate not found");
   if (row.rows[0].status !== "Rejected") throw new Error("Candidate is not in Rejected status");
-  await sendInvitationEmail(row.rows[0].email, threadId);
-  await query("UPDATE candidates SET status = 'AwaitingVideo' WHERE thread_id = $1", [threadId]);
+
+  // Re-invite uses fresh credentials so candidate can log in reliably.
+  const plainPassword = crypto.randomBytes(6).toString("base64url");
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
+  const loginToken = crypto.randomBytes(4).toString("hex");
+
+  await query(
+    `UPDATE candidates
+     SET status = 'AwaitingVideo',
+         login_token = $1,
+         password_hash = $2,
+         must_change_password = TRUE,
+         rejection_sent = FALSE
+     WHERE thread_id = $3`,
+    [loginToken, passwordHash, threadId]
+  );
+
+  await sendInvitationEmail(row.rows[0].email, threadId, plainPassword);
 }
 
 /**
@@ -83,12 +101,18 @@ export async function analyzeVideoForCandidate(threadId, videoPath) {
       salaryRange: roleContext.salary_range || "",
     });
 
-    const { englishScore, confidenceScore, skills, summary, transcript, salaryExpectation, fitVerdict, fitReason } = result;
+    const { englishScore, confidenceScore, skills, summary, transcript, salaryExpectation, fitVerdict, fitReason, usedFallback } = result;
     const skillCheck = hasRequiredSkillMatch(roleContext.required_skills || "", result);
 
     let finalStatus = "Done";
     let finalSummary = summary || "";
-    if ((fitVerdict === "mismatch" || fitVerdict === "fail" || fitVerdict === "reject") || !skillCheck.matched) {
+    if (usedFallback) {
+      finalStatus = "Error";
+      finalSummary = [
+        summary,
+        "Auto-screen result: Temporary AI fallback used. Please retry analysis from admin.",
+      ].filter(Boolean).join(" ");
+    } else if ((fitVerdict === "mismatch" || fitVerdict === "fail" || fitVerdict === "reject") || !skillCheck.matched) {
       finalStatus = "Rejected";
       const reason = fitReason || (skillCheck.missing.length ? `Missing required skills in video: ${skillCheck.missing.join(", ")}` : "Candidate does not match the role requirements.");
       finalSummary = [summary, `Auto-screen result: ${reason}`].filter(Boolean).join(" ");

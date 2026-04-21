@@ -13,17 +13,18 @@ block content
 
   .card
     if interviewers && interviewers.length
-      table
-        thead
-          tr
-            th Name
-            th Email
-            th Department
-            th Skills
-            th Interviews
-            th Available Slots
-            th Actions
-        tbody
+      .table-wrap(style="overflow-x:auto")
+        table
+          thead
+            tr
+              th Name
+              th Email
+              th Department
+              th Skills
+              th Interviews
+              th Available Slots
+              th Actions
+          tbody
           each i in interviewers
             tr
               td= i.name

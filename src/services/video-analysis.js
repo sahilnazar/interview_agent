@@ -9,6 +9,30 @@ import OpenAI from "openai";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GEMINI_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    englishScore: { type: "NUMBER" },
+    confidenceScore: { type: "NUMBER" },
+    skills: {
+      type: "ARRAY",
+      items: { type: "STRING" },
+    },
+    salaryExpectation: { type: "STRING" },
+    fitVerdict: { type: "STRING", enum: ["match", "mismatch", "unclear"] },
+    fitReason: { type: "STRING" },
+    summary: { type: "STRING" },
+  },
+  required: [
+    "englishScore",
+    "confidenceScore",
+    "skills",
+    "salaryExpectation",
+    "fitVerdict",
+    "fitReason",
+    "summary",
+  ],
+};
 
 // ─── 1. Groq Whisper — Audio Transcription ───────────────────────────────────
 
@@ -49,6 +73,92 @@ function extractGeminiText(data) {
     .trim();
 }
 
+function extractFirstJsonObject(text = "") {
+  const start = text.indexOf("{");
+  if (start === -1) return "";
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, index + 1);
+      }
+    }
+  }
+
+  return "";
+}
+
+function matchTextValue(text = "", pattern) {
+  const match = text.match(pattern);
+  return match ? match[1].trim() : "";
+}
+
+function parseGeminiTextFallback(text = "", transcript = "") {
+  const englishScore = Number.parseFloat(matchTextValue(text, /englishScore\s*[:=]\s*"?([0-9.]+)/i));
+  const confidenceScore = Number.parseFloat(matchTextValue(text, /confidenceScore\s*[:=]\s*"?([0-9.]+)/i));
+  const salaryExpectation = matchTextValue(text, /salaryExpectation\s*[:=]\s*"?([^"\n,}]+)/i);
+  const fitVerdict = matchTextValue(text, /fitVerdict\s*[:=]\s*"?([^"\n,}]+)/i).toLowerCase();
+  const fitReason = matchTextValue(text, /fitReason\s*[:=]\s*"?([^"\n}]+)/i);
+  const summary = matchTextValue(text, /summary\s*[:=]\s*"?([^"\n}]+)/i);
+  const skillsBlock = matchTextValue(text, /skills\s*[:=]\s*\[([^\]]*)\]/i);
+  const skills = skillsBlock
+    .split(",")
+    .map((skill) => skill.replace(/["']/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 5);
+
+  if (
+    Number.isFinite(englishScore) ||
+    Number.isFinite(confidenceScore) ||
+    skills.length > 0 ||
+    salaryExpectation ||
+    fitVerdict ||
+    fitReason ||
+    summary
+  ) {
+    return {
+      englishScore: Number.isFinite(englishScore) ? englishScore : (transcript ? 5 : 0),
+      confidenceScore: Number.isFinite(confidenceScore) ? confidenceScore : (transcript ? 5 : 0),
+      skills,
+      salaryExpectation: salaryExpectation || "Not mentioned",
+      fitVerdict: fitVerdict || "unclear",
+      fitReason,
+      summary: summary || "Recovered partial structured response from Gemini text output.",
+      usedFallback: false,
+    };
+  }
+
+  return null;
+}
+
 function buildFallbackAnalysis(transcript = "") {
   const excerpt = compactTranscript(transcript, 140);
   return {
@@ -61,7 +171,73 @@ function buildFallbackAnalysis(transcript = "") {
     summary: excerpt
       ? "Transcript captured. Visual scoring used a safe fallback because Gemini was temporarily busy."
       : "Video uploaded, but AI analysis is temporarily delayed due to model capacity.",
+    usedFallback: true,
   };
+}
+
+function buildGeminiPrompt(transcript = "", roleContext = {}) {
+  const transcriptExcerpt = compactTranscript(transcript, 900);
+  const transcriptLine = transcriptExcerpt
+    ? `Transcript excerpt: "${transcriptExcerpt}"\n`
+    : "";
+  const requiredSkills = compactTranscript(roleContext.requiredSkills || "", 250);
+  const salaryRange = compactTranscript(roleContext.salaryRange || "", 120);
+  const roleLine =
+    `Role required skills: ${requiredSkills || "Not provided"}.\n` +
+    `Target salary range: ${salaryRange || "Not provided"}.\n`;
+
+  return (
+    `Evaluate this short interview video for a Tell me about yourself response.\n` +
+    roleLine +
+    transcriptLine +
+    `Return exactly one JSON object with only these keys: englishScore, confidenceScore, skills, salaryExpectation, fitVerdict, fitReason, summary. ` +
+    `fitVerdict must be one of: match, mismatch, unclear. Keep skills to max 5 short items and summary under 160 chars.\n` +
+    `{"englishScore":1,"confidenceScore":1,"skills":["skill1"],"salaryExpectation":"Not mentioned","fitVerdict":"match","fitReason":"brief reason","summary":"brief summary"}`
+  );
+}
+
+async function requestGeminiAnalysis(parts) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`;
+  const requestBody = JSON.stringify({
+    contents: [{ parts }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 320,
+      responseMimeType: "application/json",
+      responseSchema: GEMINI_RESPONSE_SCHEMA,
+    },
+  });
+
+  let data = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: requestBody,
+    });
+
+    if (res.ok) {
+      data = await res.json();
+      break;
+    }
+
+    const text = await res.text();
+    if ((res.status === 429 || res.status === 503) && attempt < 2) {
+      const waitMs = 2000 * (attempt + 1);
+      console.warn(`[Gemini] Temporary ${res.status}; retrying in ${waitMs}ms`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    if (res.status === 429 || res.status === 503) {
+      console.warn(`[Gemini] Model unavailable after retries; using fallback. ${text.slice(0, 200)}`);
+      return null;
+    }
+
+    throw new Error(`Gemini generateContent failed: ${res.status} ${text}`);
+  }
+
+  return data;
 }
 
 function parseGeminiJsonResponse(data, transcript = "") {
@@ -72,16 +248,22 @@ function parseGeminiJsonResponse(data, transcript = "") {
   }
 
   const cleaned = rawText.replace(/```json/gi, "```").replace(/```/g, "").trim();
+  const extractedJson = extractFirstJsonObject(cleaned);
 
   try {
     return JSON.parse(cleaned);
   } catch {}
 
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (match) {
+  if (extractedJson) {
     try {
-      return JSON.parse(match[0]);
+      return JSON.parse(extractedJson);
     } catch {}
+  }
+
+  const salvaged = parseGeminiTextFallback(cleaned, transcript);
+  if (salvaged) {
+    console.warn("[Gemini] Recovered analysis from non-JSON text response");
+    return salvaged;
   }
 
   console.warn("[Gemini] Non-JSON response; using text fallback:", cleaned.slice(0, 200));
@@ -189,80 +371,28 @@ export async function analyzeWithGeminiFlash(videoPath, transcript = "", roleCon
 
   const file = await uploadVideoToGemini(videoPath);
   const activeFile = await waitForGeminiFile(file.name);
-
-  const transcriptExcerpt = compactTranscript(transcript, 900);
-  const transcriptLine = transcriptExcerpt
-    ? `Transcript excerpt: "${transcriptExcerpt}"\n`
-    : "";
-  const requiredSkills = compactTranscript(roleContext.requiredSkills || "", 250);
-  const salaryRange = compactTranscript(roleContext.salaryRange || "", 120);
-  const roleLine =
-    `Role required skills: ${requiredSkills || "Not provided"}.\n` +
-    `Target salary range: ${salaryRange || "Not provided"}.\n`;
-
-  const prompt =
-    `Evaluate this short interview video for a Tell me about yourself response.\n` +
-    roleLine +
-    transcriptLine +
-    `Return exactly one JSON object with only these keys: englishScore, confidenceScore, skills, salaryExpectation, fitVerdict, fitReason, summary. ` +
-    `fitVerdict must be one of: match, mismatch, unclear. Keep skills to max 5 short items and summary under 160 chars.\n` +
-    `{"englishScore":1,"confidenceScore":1,"skills":["skill1"],"salaryExpectation":"Not mentioned","fitVerdict":"match","fitReason":"brief reason","summary":"brief summary"}`;
+  const prompt = buildGeminiPrompt(transcript, roleContext);
 
   let geminiResult = null;
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`;
-    const requestBody = JSON.stringify({
-      contents: [{
-        parts: [
-          { file_data: { mime_type: activeFile.mimeType, file_uri: activeFile.uri } },
-          { text: prompt },
-        ],
-      }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 220,
-        responseMimeType: "application/json",
-      },
-    });
+    const data = await requestGeminiAnalysis([
+      { file_data: { mime_type: activeFile.mimeType, file_uri: activeFile.uri } },
+      { text: prompt },
+    ]);
 
-    let data = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: requestBody,
-      });
-
-      if (res.ok) {
-        data = await res.json();
-        break;
-      }
-
-      const text = await res.text();
-      if ((res.status === 429 || res.status === 503) && attempt < 2) {
-        const waitMs = 2000 * (attempt + 1);
-        console.warn(`[Gemini] Temporary ${res.status}; retrying in ${waitMs}ms`);
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-        continue;
-      }
-
-      if (res.status === 429 || res.status === 503) {
-        console.warn(`[Gemini] Model unavailable after retries; using fallback. ${text.slice(0, 200)}`);
-        geminiResult = buildFallbackAnalysis(transcriptExcerpt);
-        break;
-      }
-
-      throw new Error(`Gemini generateContent failed: ${res.status} ${text}`);
-    }
-
-    if (!geminiResult) {
-      geminiResult = parseGeminiJsonResponse(data, transcriptExcerpt);
-    }
+    geminiResult = data ? parseGeminiJsonResponse(data, transcript) : buildFallbackAnalysis(transcript);
   } finally {
     await deleteGeminiFile(activeFile.name);
   }
 
   return geminiResult;
+}
+
+export async function analyzeTranscriptWithGeminiFlash(transcript = "", roleContext = {}) {
+  if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY not set");
+  const prompt = buildGeminiPrompt(transcript, roleContext);
+  const data = await requestGeminiAnalysis([{ text: prompt }]);
+  return data ? parseGeminiJsonResponse(data, transcript) : buildFallbackAnalysis(transcript);
 }
 
 // ─── 3. Combined Analysis ─────────────────────────────────────────────────────
@@ -287,7 +417,19 @@ export async function analyzeCandidateVideo(videoPath, roleContext = {}) {
 
   // Stage B — Gemini 2.5 Flash visual + behavioural analysis
   console.log("[VideoAnalysis] Starting Gemini 2.5 Flash analysis...");
-  const gemini = await analyzeWithGeminiFlash(videoPath, transcript, roleContext);
+  let gemini = await analyzeWithGeminiFlash(videoPath, transcript, roleContext);
+
+  if (gemini.usedFallback && transcript.trim().length >= 40) {
+    try {
+      console.warn("[VideoAnalysis] File-based Gemini response was unusable; retrying with transcript-only analysis...");
+      const transcriptOnly = await analyzeTranscriptWithGeminiFlash(transcript, roleContext);
+      if (!transcriptOnly.usedFallback) {
+        gemini = transcriptOnly;
+      }
+    } catch (err) {
+      console.warn("[VideoAnalysis] Transcript-only Gemini retry failed:", err.message || err);
+    }
+  }
 
   return {
     englishScore: typeof gemini.englishScore === "number" ? gemini.englishScore : 0,
@@ -297,6 +439,7 @@ export async function analyzeCandidateVideo(videoPath, roleContext = {}) {
     fitVerdict: typeof gemini.fitVerdict === "string" ? gemini.fitVerdict.trim().toLowerCase() : "unclear",
     fitReason: typeof gemini.fitReason === "string" ? gemini.fitReason.trim() : "",
     summary: typeof gemini.summary === "string" ? gemini.summary : "",
+    usedFallback: gemini.usedFallback === true,
     transcript,
     whisperError,
   };

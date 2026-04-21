@@ -4,6 +4,8 @@ import {
   scheduleCandidate,
   sendInterviewerConfirmationRequest,
   sendScheduleRejectedEmail,
+  suggestInterviewersForCandidate,
+  createInterviewerAssignmentRequest,
 } from "../services/scheduler.js";
 import { requireAdmin } from "../middleware/auth.js";
 
@@ -131,16 +133,27 @@ router.post("/schedule/:candidateId", requireAdmin, async (req, res, next) => {
     );
     if (!cRow.rows.length) return res.status(404).send("Candidate not found");
 
-    const result = await scheduleCandidate(
-      candidateId,
-      cRow.rows[0].interview_id,
-    );
+    const interviewId = cRow.rows[0].interview_id;
+    const suggestions = await suggestInterviewersForCandidate(candidateId, interviewId, 5);
+    const topMatch = suggestions[0]?.interviewer_match_percent || 0;
+
+    if (suggestions.length > 0 && topMatch < 60) {
+      await createInterviewerAssignmentRequest(
+        candidateId,
+        interviewId,
+        suggestions,
+        `Low-skill match (${topMatch.toFixed(0)}%) — HR review required`,
+      );
+      return res.redirect("/admin/hr-requests");
+    }
+
+    const result = await scheduleCandidate(candidateId, interviewId);
     if (!result.scheduled) {
       return res
         .status(409)
         .send("No available slots found for any assigned interviewer");
     }
-    res.redirect(`/admin/interviews/${cRow.rows[0].interview_id}`);
+    res.redirect(`/admin/interviews/${interviewId}`);
   } catch (err) {
     next(err);
   }

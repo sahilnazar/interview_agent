@@ -10,13 +10,13 @@ block content
     h2 Interview Settings
     form(action=`/admin/interviews/${interview.id}/settings` method="POST")
       label Required Skills (comma separated)
-      textarea(name="requiredSkills" rows="3")= interview.required_skills
+      textarea(name="requiredSkills" rows="3" placeholder="e.g., JavaScript, React, Node.js")= interview.required_skills
 
       label Salary Range / Expectation
       input(type="text" name="salaryRange" value=interview.salary_range placeholder="6-8 LPA or $60k-$80k")
 
       label Job Description
-      textarea(name="jd" rows="6")= interview.jd
+      textarea(name="jd" rows="6" placeholder="Describe the role, responsibilities, and requirements")= interview.jd
 
       .input-row
         div
@@ -27,7 +27,9 @@ block content
           span.slider-val#thresholdVal= interview.pass_threshold
           input(type="range" name="passThreshold" min="0" max="100" value=interview.pass_threshold id="thresholdSlider")
 
-      button.btn(type="submit") Save Settings
+      button.btn(type="submit") 
+        span ▶ 
+        | Save Settings
 
     //- Toast notification (hidden by default)
     #settings-toast(style="display:none;position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 24px;font-size:14px;z-index:9999;animation:slideIn .3s ease-out;box-shadow:0 4px 12px rgba(0,0,0,.3)")
@@ -43,8 +45,10 @@ block content
           input(type="email" name="email" required placeholder="applicant@example.com")
         div
           label Resume (PDF, DOC, DOCX)
-          input(type="file" name="resume" accept=".pdf,.doc,.docx" required style="padding:8px")
-      button.btn(type="submit") Run Pipeline
+          input(type="file" name="resume" accept=".pdf,.doc,.docx" required style="padding:12px;border:2px dashed var(--border);border-radius:8px;background:rgba(10,10,15,0.5);backdrop-filter:blur(5px);transition:all 0.3s ease;cursor:pointer")
+      button.btn(type="submit") 
+        span ▶ 
+        | Run Pipeline
 
   //- ── Candidates Table ────────────────────────────────────
   .card
@@ -53,10 +57,14 @@ block content
       - const rejectedUnsent = candidates.filter(c => c.status === 'Rejected' && !c.rejection_sent).length
       if rejectedUnsent > 0
         form(action=`/admin/interviews/${interview.id}/bulk-reject-email` method="POST" style="display:inline" onsubmit=`return confirm('Send rejection emails to ${rejectedUnsent} candidate(s)?')`)
-          button.btn.btn-bulk-reject(type="submit") ✉ Send Rejection Emails (#{rejectedUnsent})
+          button.btn.btn-bulk-reject(type="submit") 
+            span ✉ 
+            | Send Rejection Emails (#{rejectedUnsent})
       if bulkMail && (bulkMail.pendingSelected || bulkMail.pendingNotSelected)
         form(action=`/admin/interviews/${interview.id}/bulk-outcome-email` method="POST" style="display:inline;margin-left:10px")
-          button.btn(type="submit") ✉ Send Outcome Emails (#{bulkMail.pendingSelected + bulkMail.pendingNotSelected})
+          button.btn(type="submit") 
+            span 📧 
+            | Send Outcome Emails (#{bulkMail.pendingSelected + bulkMail.pendingNotSelected})
 
     div(style="overflow-x:auto")
       table
@@ -80,7 +88,7 @@ block content
             - const hasDetails = !!(parsed || c.video_summary || c.salary_expectation)
             - const videoStatus = c.video_path ? (c.status === 'Done' ? 'Analyzed' : c.status === 'Error' ? 'Analyze Failed' : c.status === 'Rejected' ? 'Mismatch' : 'Submitted') : (c.status === 'VideoReceived' ? 'Processing' : '—')
             - const displayStatus = c.status === 'Done' ? (c.english_score != null ? `Passed ${c.english_score.toFixed(0)}%` : 'Passed') : c.status === 'Rejected' && c.video_summary ? 'Failed Match' : c.status === 'Error' ? 'Analysis Error' : c.status
-            tr
+            tr(style="animation:fadeIn 0.3s ease-out;animation-fill-mode:both;animation-delay:0.1s")
               td= c.email
               td
                 - const s = c.status === 'Done' ? 'done' : c.status === 'Error' ? 'error' : (c.status || '').toLowerCase().replace(/\s+/g,'')
@@ -92,11 +100,11 @@ block content
                     button.summary-toggle(type="button" data-target=`summary-${c.thread_id}`) ▶ Details
               td
                 if c.final_result === 'pass'
-                  span.badge.badge-success Selected
+                  span.badge.badge-success(style="animation:pulse 2s infinite") Selected
                 else if c.final_result === 'fail'
-                  span.badge.badge-danger Not Selected
+                  span.badge.badge-danger(style="animation:pulse 2s infinite") Not Selected
                 else
-                  span(style="color:var(--text-muted);font-size:12px") Processing
+                  span(style="color:var(--text-muted);font-size:12px;animation:pulse 1s infinite") Processing
               td
                 if videoStatus === 'Submitted' || videoStatus === 'Processing'
                   span(style="color:var(--warning);font-size:12px") ⏳ #{videoStatus}

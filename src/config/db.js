@@ -410,6 +410,27 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_scheduled_interviewer ON scheduled_interviews(interviewer_id)
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS interviewer_assignment_requests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      candidate_id TEXT NOT NULL REFERENCES candidates(thread_id) ON DELETE CASCADE,
+      interview_id UUID NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reason TEXT,
+      suggested_interviewers JSONB NOT NULL,
+      selected_interviewer_id UUID,
+      approval_notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_assignment_requests_status ON interviewer_assignment_requests(status)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_assignment_requests_interview ON interviewer_assignment_requests(interview_id)
+  `);
+
   // ── Migration: add scheduled_at to candidates ────────────────────────
   await query(`
     DO $$ BEGIN

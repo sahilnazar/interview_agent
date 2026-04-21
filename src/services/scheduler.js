@@ -14,7 +14,7 @@
 
 import crypto from "node:crypto";
 import { query } from "../config/db.js";
-import { sendEmail, sendSelectionEmail, sendNotSelectedEmail } from "./email.js";
+import { sendEmail, sendSelectionEmail, sendNotSelectedEmail, sendHrApprovalRequestNotification } from "./email.js";
 import { callWithRetry, getGroqModel } from "../graph/helpers.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
@@ -65,6 +65,180 @@ function parseSkillList(value = "") {
 
 function toUnique(list = []) {
   return [...new Set(list.filter(Boolean))];
+}
+
+const INTERVIEWER_MATCH_THRESHOLD = 60;
+
+export async function suggestInterviewersForCandidate(candidateId, interviewId, limit = 5) {
+  const slots = await findAvailableSlots(interviewId, candidateId, limit * 3);
+  if (!slots.length) return [];
+
+  const unique = new Map();
+  for (const slot of slots) {
+    if (!unique.has(slot.interviewer_id)) {
+      unique.set(slot.interviewer_id, {
+        interviewer_id: slot.interviewer_id,
+        interviewer_name: slot.interviewer_name,
+        interviewer_email: slot.interviewer_email,
+        interviewer_match_percent: slot.interviewer_match_percent || 0,
+        slot_start: slot.slot_start,
+        slot_end: slot.slot_end,
+      });
+    }
+  }
+
+  const suggestions = Array.from(unique.values())
+    .sort((a, b) => b.interviewer_match_percent - a.interviewer_match_percent)
+    .slice(0, limit);
+
+  if (!suggestions.length) return [];
+
+  const interviewerRows = await query(
+    "SELECT id, name, email, department, skills FROM interviewers WHERE id = ANY($1::uuid[])",
+    [suggestions.map((item) => item.interviewer_id)],
+  );
+  const interviewerMap = new Map(interviewerRows.rows.map((row) => [row.id, row]));
+
+  return suggestions.map((item) => {
+    const metadata = interviewerMap.get(item.interviewer_id) || {};
+    return {
+      ...item,
+      department: metadata.department || "",
+      skills: parseSkillList(metadata.skills || ""),
+    };
+  });
+}
+
+export async function createInterviewerAssignmentRequest(candidateId, interviewId, suggestions, reason) {
+  const result = await query(
+    `INSERT INTO interviewer_assignment_requests
+       (candidate_id, interview_id, status, reason, suggested_interviewers, created_at, updated_at)
+     VALUES ($1, $2, 'pending', $3, $4::jsonb, NOW(), NOW())
+     RETURNING id`,
+    [candidateId, interviewId, reason, JSON.stringify(suggestions)],
+  );
+
+  const requestId = result.rows[0].id;
+  await sendHrApprovalRequestNotification(interviewId, candidateId, requestId, suggestions, reason);
+  return requestId;
+}
+
+export async function getHrAssignmentRequests() {
+  const res = await query(
+    `SELECT r.*, c.email AS candidate_email, i.title AS interview_title
+     FROM interviewer_assignment_requests r
+     JOIN candidates c ON c.thread_id = r.candidate_id
+     JOIN interviews i ON i.id = r.interview_id
+     ORDER BY r.created_at DESC`,
+  );
+  return res.rows;
+}
+
+export async function getPendingHrRequestCount() {
+  const res = await query("SELECT COUNT(*) AS count FROM interviewer_assignment_requests WHERE status = 'pending'");
+  return parseInt(res.rows[0].count, 10);
+}
+
+export async function getPendingHrRequestCountForInterview(interviewId) {
+  const res = await query(
+    "SELECT COUNT(*) AS count FROM interviewer_assignment_requests WHERE interview_id = $1 AND status = 'pending'",
+    [interviewId],
+  );
+  return parseInt(res.rows[0].count, 10);
+}
+
+export async function getHrAssignmentRequest(requestId) {
+  const res = await query(
+    `SELECT r.*, c.email AS candidate_email, i.title AS interview_title
+     FROM interviewer_assignment_requests r
+     JOIN candidates c ON c.thread_id = r.candidate_id
+     JOIN interviews i ON i.id = r.interview_id
+     WHERE r.id = $1`,
+    [requestId],
+  );
+  if (!res.rows.length) return null;
+  return res.rows[0];
+}
+
+export async function approveInterviewerAssignmentRequest(requestId, interviewerId, notes = "") {
+  const request = await getHrAssignmentRequest(requestId);
+  if (!request) throw new Error("Request not found");
+  if (request.status !== "pending") throw new Error("Request is no longer pending");
+
+  const suggestions = Array.isArray(request.suggested_interviewers)
+    ? request.suggested_interviewers
+    : [];
+  const chosen = suggestions.find((item) => item.interviewer_id === interviewerId);
+  if (!chosen) throw new Error("Selected interviewer is not part of this request");
+
+  const slotResult = await query(
+    `SELECT s.*
+     FROM interviewer_slots s
+     WHERE s.interviewer_id = $1
+       AND s.status = 'available'
+       AND s.slot_start > NOW()
+       AND NOT EXISTS (
+         SELECT 1 FROM scheduled_interviews si
+         WHERE si.slot_id = s.id
+           AND si.status NOT IN ('rejected_interviewer', 'rejected_candidate', 'cancelled')
+       )
+     ORDER BY s.slot_start
+     LIMIT 1`,
+    [interviewerId],
+  );
+  if (!slotResult.rows.length) throw new Error("No available slot found for selected interviewer");
+  const slot = slotResult.rows[0];
+
+  await query(
+    "INSERT INTO interview_interviewers (interview_id, interviewer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    [request.interview_id, interviewerId],
+  );
+
+  const candidateToken = generateToken();
+  const interviewerToken = generateToken();
+
+  const scheduled = await query(
+    `INSERT INTO scheduled_interviews
+       (candidate_id, interviewer_id, slot_id, slot_start, slot_end,
+        status, candidate_token, interviewer_token, created_at)
+     VALUES ($1, $2, $3, $4, $5, 'pending_candidate', $6, $7, NOW())
+     RETURNING id`,
+    [request.candidate_id, interviewerId, slot.id, slot.slot_start, slot.slot_end, candidateToken, interviewerToken],
+  );
+
+  await query("UPDATE interviewer_slots SET status = 'booked' WHERE id = $1", [slot.id]);
+  await query(
+    `UPDATE interviewer_assignment_requests
+     SET status = 'approved', selected_interviewer_id = $1, approval_notes = $2, updated_at = NOW()
+     WHERE id = $3`,
+    [interviewerId, notes, requestId],
+  );
+
+  await sendCandidateSlotEmail(request.candidate_email, request.candidate_id, [
+    {
+      ...scheduled.rows[0],
+      candidateToken,
+      slot_start: slot.slot_start,
+      slot_end: slot.slot_end,
+      interviewer_name: chosen.interviewer_name,
+    },
+  ]);
+
+  return scheduled.rows[0];
+}
+
+export async function rejectInterviewerAssignmentRequest(requestId, notes = "Rejected by HR") {
+  const request = await getHrAssignmentRequest(requestId);
+  if (!request) throw new Error("Request not found");
+  if (request.status !== "pending") throw new Error("Request is no longer pending");
+
+  await query(
+    `UPDATE interviewer_assignment_requests
+     SET status = 'rejected', approval_notes = $1, updated_at = NOW()
+     WHERE id = $2`,
+    [notes, requestId],
+  );
+  return true;
 }
 
 function computeInterviewerMatchPercent(interviewerSkills = [], jobSkills = [], candidateSkills = []) {

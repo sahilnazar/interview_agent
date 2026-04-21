@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InterviewAssist — Presentation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #06060f;
+      --accent: #00d4ff;
+      --accent2: #00ff88;
+      --accent3: #a855f7;
+      --danger: #ff4757;
+      --warning: #ffa500;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --glass: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* ── Slides ─────────────────────────────── */
+    .slides { width: 100%; height: 100vh; position: relative; }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 48px 60px;
+      opacity: 0;
+      transform: translateX(60px);
+      transition: opacity .5s ease, transform .5s ease;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .slide.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: all;
+    }
+    .slide.exit {
+      opacity: 0;
+      transform: translateX(-60px);
+    }
+
+    /* ── Nav ─────────────────────────────────── */
+    .nav {
+      position: fixed;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 100;
+      background: rgba(6,6,15,0.8);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      padding: 10px 20px;
+      backdrop-filter: blur(20px);
+    }
+    .nav button {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 8px 20px;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .nav button:hover { border-color: var(--accent); color: var(--accent); }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .slide-num {
+      font-size: 11px;
+      color: var(--muted);
+      min-width: 40px;
+      text-align: center;
+    }
+
+    /* ── Background grid ─────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    /* ── Typography helpers ───────────────────── */
+    .label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+      font-weight: 500;
+    }
+    .h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(48px, 7vw, 88px);
+      font-weight: 800;
+      line-height: 1.05;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(28px, 4vw, 52px);
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .purple-text {
+      background: linear-gradient(135deg, var(--accent3), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .sub {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 680px;
+    }
+    .accent { color: var(--accent); }
+    .accent2 { color: var(--accent2); }
+
+    /* ── Cards / Pills ────────────────────────── */
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      backdrop-filter: blur(10px);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 50px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .pill-blue  { background: rgba(0,212,255,.12); color: var(--accent);  border: 1px solid rgba(0,212,255,.2); }
+    .pill-green { background: rgba(0,255,136,.12); color: var(--accent2); border: 1px solid rgba(0,255,136,.2); }
+    .pill-purple{ background: rgba(168,85,247,.12); color: var(--accent3); border: 1px solid rgba(168,85,247,.2); }
+    .pill-orange{ background: rgba(255,165,0,.12);  color: var(--warning); border: 1px solid rgba(255,165,0,.2); }
+
+    /* ── Slide 1: Hero ────────────────────────── */
+    #slide-1 { text-align: center; gap: 28px; }
+    #slide-1 .tagline {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 600px;
+      line-height: 1.7;
+    }
+    #slide-1 .badges { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+    .glow-ring {
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,212,255,.06) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    /* ── Slide 2: Problem/Solution ────────────── */
+    #slide-2 { align-items: flex-start; gap: 32px; }
+    .vs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+      max-width: 100%;
+    }
+    .vs-col { display: flex; flex-direction: column; gap: 12px; }
+    .vs-col h3 { font-family: 'Syne', sans-serif; font-size: 18px; margin-bottom: 4px; }
+    .pain-item, .sol-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      padding: 12px 16px;
+      border-radius: 10px;
+    }
+    .pain-item { background: rgba(255,71,87,.06); border: 1px solid rgba(255,71,87,.15); }
+    .sol-item  { background: rgba(0,255,136,.06); border: 1px solid rgba(0,255,136,.15); }
+    .pain-item .icon { color: var(--danger); font-size: 16px; }
+    .sol-item .icon  { color: var(--accent2); font-size: 16px; }
+
+    /* ── Slide 3: Feature Pipeline ────────────── */
+    #slide-3 { align-items: center; gap: 20px; }
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      width: 100%;
+      max-width: 100%;
+    }
+    .pipe-step {
+      flex: 1;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 16px;
+      text-align: center;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pipe-step + .pipe-step::before {
+      content: '→';
+      position: absolute;
+      left: -18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: 20px;
+      z-index: 2;
+    }
+    .pipe-step .icon { font-size: 26px; }
+    .pipe-step .step-label {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .pipe-step .step-sub { font-size: 10px; color: var(--muted); line-height: 1.5; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      width: 100%;
+      max-width: 100%;
+    }
+    .feat-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .feat-card .icon { font-size: 22px; }
+    .feat-card h4 { font-family: 'Syne', sans-serif; font-size: 13px; color: #fff; }
+    .feat-card p { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Slide 4: Tech Stack ──────────────────── */
+    #slide-4 { align-items: flex-start; gap: 20px; }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      width: 100%;
+      max-width: 100%;
+    }
+    .tech-category h4 {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      color: var(--muted);
+    }
+    .tech-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tech-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+    }
+    .tech-item .name { color: #fff; font-weight: 500; font-size: 13px; }
+    .tech-item .role { color: var(--muted); font-size: 10px; }
+
+    /* ── Slide 5: Closing ─────────────────────── */
+    #slide-5 { text-align: center; gap: 32px; }
+    .stat-row {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .stat-box {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 36px;
+      text-align: center;
+    }
+    .stat-box .num {
+      font-family: 'Syne', sans-serif;
+      font-size: 48px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-box .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Animations ───────────────────────────── */
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 0 0 0 rgba(0,212,255,.3); }
+      100% { box-shadow: 0 0 0 24px rgba(0,212,255,0); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="slides">
+
+  <!-- ── SLIDE 1: Hero ────────────────────────────────── -->
+  <div class="slide active" id="slide-1">
+    <div class="glow-ring"></div>
+    <div class="label">AI-Powered Recruitment Platform</div>
+    <h1 class="h1">Interview<span style="color:var(--accent)">Assist</span></h1>
+    <p class="tagline">
+      A fully autonomous end-to-end hiring pipeline —<br>
+      from resume drop to scheduled interview, powered by AI.
+    </p>
+    <div class="badges">
+      <span class="pill pill-blue">🤖 LangGraph Agents</span>
+      <span class="pill pill-green">🎥 Gemini Vision</span>
+      <span class="pill pill-purple">⚡ Groq LLM</span>
+      <span class="pill pill-orange">🗄️ pgvector RAG</span>
+      <span class="pill pill-blue">📧 IMAP Ingest</span>
+      <span class="pill pill-green">📅 Auto Scheduler</span>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 2: Problem → Solution ──────────────────── -->
+  <div class="slide" id="slide-2">
+    <div class="label">Why InterviewAssist</div>
+    <h2 class="h2">Traditional Hiring is <span class="gradient-text">Broken</span></h2>
+    <div class="vs-grid">
+      <div class="vs-col card">
+        <h3 style="color:var(--danger)">✗ The Old Way</h3>
+        <div class="pain-item"><span class="icon">✗</span> Hundreds of resumes screened manually</div>
+        <div class="pain-item"><span class="icon">✗</span> Unstructured video interviews with no scoring</div>
+        <div class="pain-item"><span class="icon">✗</span> Interviewer-candidate skill mismatch goes undetected</div>
+        <div class="pain-item"><span class="icon">✗</span> Scheduling back-and-forth across emails</div>
+        <div class="pain-item"><span class="icon">✗</span> No audit trail or data-driven decisions</div>
+      </div>
+      <div class="vs-col card">
+        <h3 style="color:var(--accent2)">✓ With InterviewAssist</h3>
+        <div class="sol-item"><span class="icon">✓</span> AI pipeline screens & scores resumes automatically</div>
+        <div class="sol-item"><span class="icon">✓</span> Gemini Vision analyzes fluency, skills & confidence</div>
+        <div class="sol-item"><span class="icon">✓</span> Skill-aware matching with HR approval workflow</div>
+        <div class="sol-item"><span class="icon">✓</span> Automated slot booking, tokens & confirmation emails</div>
+        <div class="sol-item"><span class="icon">✓</span> Full candidate lifecycle tracked in one dashboard</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 3: Feature Pipeline ──────────────────── -->
+  <div class="slide" id="slide-3">
+    <div class="label">End-to-End Autonomous Pipeline</div>
+    <h2 class="h2"><span class="gradient-text">Every step</span> — automated</h2>
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="icon">📥</div>
+        <div class="step-label">Resume Intake</div>
+        <div class="step-sub">Drop folder, careers portal, IMAP email auto-fetch</div>
+      </div>
+      <div class="pipe-step">
+        <div class="icon">🧠</div>
+        <div class="step-label">AI Screening</div>
+        <div class="step-sub">LangGraph + Groq scores resume vs JD with RAG</div>
+      </div>
+      <div class="pipe-step">
+        <div class="icon">🎥</div>
+        <div class="step-label">Video Analysis</div>
+        <div class="step-sub">Gemini Vision: fluency, skills, confidence scores</div>
+      </div>
+      <div class="pipe-step">
+        <div class="icon">📅</div>
+        <div class="step-label">Smart Scheduling</div>
+        <div class="step-sub">Skill-matched interviewers, auto slot booking</div>
+      </div>
+      <div class="pipe-step">
+        <div class="icon">✅</div>
+        <div class="step-label">Outcome</div>
+        <div class="step-sub">Bulk select / reject emails with full audit trail</div>
+      </div>
+    </div>
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="icon">🔍</div>
+        <h4>RAG-based JD Matching</h4>
+        <p>Embeddings (Ollama / OpenAI) chunk JDs into pgvector for semantic resume-to-role matching</p>
+      </div>
+      <div class="feat-card">
+        <div class="icon">👥</div>
+        <h4>HR Approval Panel</h4>
+        <p>When no high-skill interviewer is available, admin reviews AI suggestions & approves</p>
+      </div>
+      <div class="feat-card">
+        <div class="icon">🔐</div>
+        <h4>OTP Interviewer Login</h4>
+        <p>Interviewers authenticate via one-time email OTP with calendar & slot management</p>
+      </div>
+      <div class="feat-card">
+        <div class="icon">🤖</div>
+        <h4>MCP Integration</h4>
+        <p>Model Context Protocol tools extend the AI agent with external capability calls</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 4: Tech Stack ─────────────────────────── -->
+  <div class="slide" id="slide-4">
+    <div class="label">Technology Stack</div>
+    <h2 class="h2">Built on <span class="purple-text">Modern AI Infrastructure</span></h2>
+    <div class="tech-grid">
+      <div class="tech-category">
+        <h4>🤖 AI &amp; Agents</h4>
+        <div class="tech-pills">
+          <div class="tech-item"><span class="name">LangGraph.js</span><span class="role">Stateful agent pipeline</span></div>
+          <div class="tech-item"><span class="name">Groq LLM</span><span class="role">Resume scoring, scheduling</span></div>
+          <div class="tech-item"><span class="name">Gemini Vision</span><span class="role">Video analysis</span></div>
+          <div class="tech-item"><span class="name">Ollama / OpenAI</span><span class="role">Text embeddings</span></div>
+          <div class="tech-item"><span class="name">MCP SDK</span><span class="role">Tool-use protocol</span></div>
+        </div>
+      </div>
+      <div class="tech-category">
+        <h4>🗄️ Data &amp; Storage</h4>
+        <div class="tech-pills">
+          <div class="tech-item"><span class="name">PostgreSQL</span><span class="role">Primary datastore</span></div>
+          <div class="tech-item"><span class="name">pgvector</span><span class="role">Vector similarity search</span></div>
+          <div class="tech-item"><span class="name">LangGraph Checkpoint</span><span class="role">Agent state persistence</span></div>
+          <div class="tech-item"><span class="name">File Watcher</span><span class="role">CV drop folder (chokidar)</span></div>
+        </div>
+      </div>
+      <div class="tech-category">
+        <h4>🌐 Backend &amp; Infra</h4>
+        <div class="tech-pills">
+          <div class="tech-item"><span class="name">Node.js + Express</span><span class="role">REST API server</span></div>
+          <div class="tech-item"><span class="name">Pug Templates</span><span class="role">Server-side UI rendering</span></div>
+          <div class="tech-item"><span class="name">Nodemailer + IMAP</span><span class="role">Email send &amp; ingest</span></div>
+          <div class="tech-item"><span class="name">Docker</span><span class="role">Containerized deployment</span></div>
+          <div class="tech-item"><span class="name">Session Auth + bcrypt</span><span class="role">Secure admin access</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 5: Closing ────────────────────────────── -->
+  <div class="slide" id="slide-5">
+    <div class="label">Impact &amp; Summary</div>
+    <h2 class="h2">One platform.<br/><span class="gradient-text">Zero manual bottlenecks.</span></h2>
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="num">100%</div>
+        <div class="lbl">Automated Resume Screening</div>
+      </div>
+      <div class="stat-box">
+        <div class="num">5+</div>
+        <div class="lbl">AI Models Orchestrated</div>
+      </div>
+      <div class="stat-box">
+        <div class="num">0</div>
+        <div class="lbl">Manual Scheduling Steps</div>
+      </div>
+      <div class="stat-box">
+        <div class="num">∞</div>
+        <div class="lbl">Interviews Scalable</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+      <span class="pill pill-blue">LangGraph Agents</span>
+      <span class="pill pill-green">Gemini Vision</span>
+      <span class="pill pill-purple">Groq LLM</span>
+      <span class="pill pill-orange">pgvector RAG</span>
+      <span class="pill pill-blue">IMAP Auto-Ingest</span>
+      <span class="pill pill-green">Smart Scheduling</span>
+      <span class="pill pill-purple">HR Approval Panel</span>
+      <span class="pill pill-orange">MCP Tool Protocol</span>
+    </div>
+    <p class="sub" style="text-align:center;max-width:580px">
+      InterviewAssist brings together the best of modern AI to eliminate hiring inefficiencies — so teams can focus on what matters: <span class="accent">finding the right people</span>.
+    </p>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<nav class="nav">
+  <button onclick="prev()">← Prev</button>
+  <div id="dots" style="display:flex;gap:8px;align-items:center"></div>
+  <span class="slide-num" id="slide-num">1 / 5</span>
+  <button onclick="next()">Next →</button>
+</nav>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('dots');
+  const slideNum = document.getElementById('slide-num');
+  let current = 0;
+
+  slides.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goTo(i);
+    dotsContainer.appendChild(dot);
+  });
+
+  function goTo(n) {
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(() => slides[current].classList.remove('exit'), 500);
+    current = (n + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === current));
+    slideNum.textContent = `${current + 1} / ${slides.length}`;
+  }
+
+  function next() { goTo(current + 1); }
+  function prev() { goTo(current - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'Space') next();
+    if (e.key === 'ArrowLeft') prev();
+  });
+</script>
+</body>
+</html>

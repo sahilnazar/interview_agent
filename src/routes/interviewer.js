@@ -105,24 +105,51 @@ router.get("/calendar", requireInterviewer, async (req, res, next) => {
 });
 
 // ─── POST /interviewer/calendar/slots ─────────────────────────────────────
-// Add a single available slot
+// Add single or multiple slots, with optional recurring
 router.post("/calendar/slots", requireInterviewer, async (req, res, next) => {
   try {
-    const { slot_start, slot_end, status } = req.body;
-    if (!slot_start || !slot_end) return res.redirect("/interviewer/calendar");
+    const { slot_date, recurring, status } = req.body;
+    if (!slot_date) return res.redirect("/interviewer/calendar");
 
-    const start = new Date(slot_start);
-    const end = new Date(slot_end);
-    if (isNaN(start) || isNaN(end) || end <= start) {
-      return res.redirect("/interviewer/calendar");
-    }
+    const baseDate = new Date(slot_date);
+    if (isNaN(baseDate)) return res.redirect("/interviewer/calendar");
 
     const slotStatus = status === "blocked" ? "blocked" : "available";
+    const slotsToInsert = [];
 
-    await query(
-      "INSERT INTO interviewer_slots (interviewer_id, slot_start, slot_end, status) VALUES ($1, $2, $3, $4)",
-      [req.session.interviewer.id, start, end, slotStatus],
-    );
+    // Collect all slot times
+    for (let i = 1; i <= 3; i++) {
+      const startTime = req.body[`slot_start_${i}`];
+      const endTime = req.body[`slot_end_${i}`];
+      if (startTime && endTime) {
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const [endHour, endMin] = endTime.split(':').map(Number);
+        if (startHour < endHour || (startHour === endHour && startMin < endMin)) {
+          slotsToInsert.push({ startHour, startMin, endHour, endMin });
+        }
+      }
+    }
+
+    if (slotsToInsert.length === 0) return res.redirect("/interviewer/calendar");
+
+    // If recurring, create for 4 weeks
+    const weeks = recurring === 'weekly' ? 4 : 1;
+    for (let week = 0; week < weeks; week++) {
+      const weekDate = new Date(baseDate);
+      weekDate.setDate(baseDate.getDate() + week * 7);
+
+      for (const slot of slotsToInsert) {
+        const start = new Date(weekDate);
+        start.setHours(slot.startHour, slot.startMin, 0, 0);
+        const end = new Date(weekDate);
+        end.setHours(slot.endHour, slot.endMin, 0, 0);
+
+        await query(
+          "INSERT INTO interviewer_slots (interviewer_id, slot_start, slot_end, status) VALUES ($1, $2, $3, $4)",
+          [req.session.interviewer.id, start, end, slotStatus],
+        );
+      }
+    }
 
     res.redirect("/interviewer/calendar");
   } catch (err) {

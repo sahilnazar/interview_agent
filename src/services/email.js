@@ -24,8 +24,60 @@ export async function sendEmail(to, subject, html) {
   await getTransporter().sendMail({ from: process.env.GMAIL_USER, to, subject, html });
 }
 
+export async function sendHrApprovalRequestNotification(interviewId, candidateEmail, requestId, suggestions, reason) {
+  const recipients = (process.env.HR_NOTIFICATION_EMAILS || "")
+    .split(",")
+    .map((address) => address.trim())
+    .filter(Boolean);
+  if (!recipients.length) {
+    console.warn("HR_NOTIFICATION_EMAILS not set — skipping HR approval notification");
+    return;
+  }
+
+  const requestUrl = `${process.env.APP_URL || `http://localhost:${PORT}`}/admin/hr-requests/${requestId}`;
+  const suggestionRows = suggestions
+    .map((suggestion, index) => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #1e293b">${index + 1}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #1e293b">${suggestion.interviewer_name}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #1e293b">${suggestion.interviewer_email}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #1e293b">${suggestion.department || 'N/A'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #1e293b">${suggestion.interviewer_match_percent != null ? suggestion.interviewer_match_percent.toFixed(0) + '%' : 'n/a'}</td>
+      </tr>`)
+    .join("");
+
+  await sendEmail(
+    recipients.join(", "),
+    "HR Review Required — Interviewer Assignment Suggestion",
+    `<div style="font-family:sans-serif;max-width:640px">
+      <h2>HR Review Required</h2>
+      <p>A candidate has a low-match interviewer suggestion request and requires HR approval.</p>
+      <p><strong>Candidate:</strong> ${candidateEmail}</p>
+      <p><strong>Reason:</strong> ${reason}</p>
+      <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#0f172a;border-radius:8px;overflow:hidden">
+        <thead>
+          <tr>
+            <th style="padding:12px 16px;text-align:left;color:#94a3b8">#</th>
+            <th style="padding:12px 16px;text-align:left;color:#94a3b8">Name</th>
+            <th style="padding:12px 16px;text-align:left;color:#94a3b8">Email</th>
+            <th style="padding:12px 16px;text-align:left;color:#94a3b8">Department</th>
+            <th style="padding:12px 16px;text-align:left;color:#94a3b8">Match</th>
+          </tr>
+        </thead>
+        <tbody>${suggestionRows}</tbody>
+      </table>
+      <p>
+        <a href="${requestUrl}" style="display:inline-block;padding:12px 18px;background:#4f6ef7;color:#fff;border-radius:8px;text-decoration:none">
+          Review in Admin Panel
+        </a>
+      </p>
+    </div>`,
+  );
+}
+
 export async function sendInvitationEmail(email, threadId, password) {
-  const loginUrl = `http://localhost:${PORT}/login/candidate`;
+  const baseUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+  const loginUrl = `${baseUrl}/login/candidate?next=${encodeURIComponent("/candidate/interview")}`;
   await sendEmail(
     email,
     "Interview Invitation — Next Steps",
@@ -38,7 +90,7 @@ export async function sendInvitationEmail(email, threadId, password) {
         <tr><td style="padding:6px 16px 6px 0;color:#888">Password:</td><td style="padding:6px 0"><strong>${password}</strong></td></tr>
       </table>
       <p><a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#4f6ef7;color:#fff;border-radius:6px;text-decoration:none">
-        Login to Your Dashboard
+        Login and Record Interview
       </a></p>
       <h3 style="margin-top:24px">Interview Question</h3>
       <p>Record a <strong>2–3 minute video</strong> introducing yourself, discussing your

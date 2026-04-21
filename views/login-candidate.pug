@@ -8,6 +8,7 @@ block content
       if error
         .auth-error= error
       form(action="/login/candidate" method="POST")
+        input(type="hidden" name="next" value=(nextPath || '/candidate/interview'))
         label Email
         input(type="email" name="email" required autofocus placeholder="you@example.com")
         label Password

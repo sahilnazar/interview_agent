@@ -5,18 +5,26 @@ import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 
 import { query } from "../config/db.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { reselectCandidateById, rejectCandidateById } from "../graph/actions.js";
 import { storeJDChunks, getEmbedStatus } from "../services/embeddings.js";
 import { sendRejectionEmail } from "../services/email.js";
 import { restartEmailIngest } from "../services/email-ingest.js";
-import { sendBulkOutcomeEmails } from "../services/scheduler.js";
+import {
+  sendBulkOutcomeEmails,
+  getHrAssignmentRequests,
+  getPendingHrRequestCount,
+  getHrAssignmentRequest,
+  approveInterviewerAssignmentRequest,
+  rejectInterviewerAssignmentRequest,
+} from "../services/scheduler.js";
 
 const router = Router();
 const resumeUpload = multer({ storage: multer.memoryStorage() });
 
 // ─── Interview List ──────────────────────────────────────────────────────
-// GET /admin — list all interviews
-router.get("/", async (_req, res, next) => {
+// GET /admin — list all interviews and show interview creation
+router.get("/", requireAdmin, async (_req, res, next) => {
   try {
     const result = await query(
       `SELECT i.*, 
@@ -27,19 +35,73 @@ router.get("/", async (_req, res, next) => {
        ORDER BY i.created_at DESC`
     );
 
-    // Load global settings for the page
+    const pendingHrCount = await getPendingHrRequestCount();
+    res.render("admin", { interviews: result.rows, pendingHrCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /admin/hr-requests — show HR assignment requests panel
+router.get("/hr-requests", requireAdmin, async (_req, res, next) => {
+  try {
+    const requests = await getHrAssignmentRequests();
+    const pendingCount = await getPendingHrRequestCount();
+    res.render("hr-requests", { requests, pendingCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /admin/hr-requests/:requestId — view single HR request detail
+router.get("/hr-requests/:requestId", requireAdmin, async (req, res, next) => {
+  try {
+    const request = await getHrAssignmentRequest(req.params.requestId);
+    if (!request) return res.status(404).send("Request not found");
+    res.render("hr-request-detail", { request });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/hr-requests/:requestId/approve/:interviewerId — HR approves an interviewer
+router.post("/hr-requests/:requestId/approve/:interviewerId", requireAdmin, async (req, res, next) => {
+  try {
+    const { requestId, interviewerId } = req.params;
+    const { notes } = req.body;
+    await approveInterviewerAssignmentRequest(requestId, interviewerId, notes || "");
+    res.redirect("/admin/hr-requests");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/hr-requests/:requestId/reject — HR rejects the request
+router.post("/admin/hr-requests/:requestId/reject", requireAdmin, async (req, res, next) => {
+  try {
+    const { requestId } = req.params;
+    const { notes } = req.body;
+    await rejectInterviewerAssignmentRequest(requestId, notes || "Rejected by HR");
+    res.redirect("/admin/hr-requests");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /admin/settings — show admin settings page
+router.get("/settings", requireAdmin, async (_req, res, next) => {
+  try {
     const settingsResult = await query("SELECT key, value FROM settings");
     const settings = {};
     for (const r of settingsResult.rows) settings[r.key] = r.value;
-
-    res.render("admin", { interviews: result.rows, settings });
+    res.render("admin-settings", { settings });
   } catch (err) {
     next(err);
   }
 });
 
 // POST /admin/settings — save global embedding settings
-router.post("/settings", async (req, res, next) => {
+router.post("/settings", requireAdmin, async (req, res, next) => {
   try {
     const { embedding_provider, ollama_base_url, bulk_mail_enabled, bulk_mail_send_time } = req.body;
     if (embedding_provider) {
@@ -64,14 +126,14 @@ router.post("/settings", async (req, res, next) => {
         [bulk_mail_send_time.trim() || '18:00']
       );
     }
-    res.redirect("/admin");
+    res.redirect("/admin/settings");
   } catch (err) {
     next(err);
   }
 });
 
 // POST /admin/settings/imap — save IMAP email ingestion settings
-router.post("/settings/imap", async (req, res, next) => {
+router.post("/settings/imap", requireAdmin, async (req, res, next) => {
   try {
     const fields = ["imap_host", "imap_port", "imap_user", "imap_password", "imap_poll_interval", "imap_folder"];
     const enabled = req.body.imap_enabled === "on" ? "true" : "false";
@@ -94,14 +156,14 @@ router.post("/settings/imap", async (req, res, next) => {
     const cvsAutoDir = path.join(process.cwd(), "cvs", "auto");
     await restartEmailIngest(cvsAutoDir);
 
-    res.redirect("/admin");
+    res.redirect("/admin/settings");
   } catch (err) {
     next(err);
   }
 });
 
 // POST /admin/interviews — create a new interview
-router.post("/interviews", async (req, res, next) => {
+router.post("/interviews", requireAdmin, async (req, res, next) => {
   try {
     const { title, requiredSkills, salaryRange } = req.body;
     if (!title || !title.trim()) return res.status(400).send("Title is required");
@@ -120,7 +182,7 @@ router.post("/interviews", async (req, res, next) => {
 
 // ─── Single Interview ────────────────────────────────────────────────────
 // GET /admin/interviews/:id — interview detail page
-router.get("/interviews/:id", async (req, res, next) => {
+router.get("/interviews/:id", requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params;
     const intRow = await query("SELECT * FROM interviews WHERE id = $1", [id]);
@@ -173,7 +235,7 @@ router.get("/interviews/:id", async (req, res, next) => {
 });
 
 // POST /admin/interviews/:id/settings — update JD, threshold, domain filter
-router.post("/interviews/:id/settings", async (req, res, next) => {
+router.post("/interviews/:id/settings", requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params;
     const { jd, passThreshold, domainFilter, requiredSkills, salaryRange } = req.body;
@@ -205,7 +267,7 @@ router.post("/interviews/:id/settings", async (req, res, next) => {
 });
 
 // POST /admin/interviews/:id/trigger — trigger graph for a resume
-router.post("/interviews/:id/trigger", resumeUpload.single("resume"), async (req, res, next) => {
+router.post("/interviews/:id/trigger", requireAdmin, resumeUpload.single("resume"), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { email } = req.body;
@@ -227,7 +289,7 @@ router.post("/interviews/:id/trigger", resumeUpload.single("resume"), async (req
 });
 
 // POST /admin/interviews/:id/reselect/:threadId — re-invite a rejected candidate
-router.post("/interviews/:id/reselect/:threadId", async (req, res, next) => {
+router.post("/interviews/:id/reselect/:threadId", requireAdmin, async (req, res, next) => {
   try {
     await reselectCandidateById(req.params.threadId);
     res.redirect(`/admin/interviews/${req.params.id}`);
@@ -239,7 +301,7 @@ router.post("/interviews/:id/reselect/:threadId", async (req, res, next) => {
 });
 
 // POST /admin/interviews/:id/retry-analysis/:threadId — re-run video analysis on Error status
-router.post("/interviews/:id/retry-analysis/:threadId", async (req, res, next) => {
+router.post("/interviews/:id/retry-analysis/:threadId", requireAdmin, async (req, res, next) => {
   try {
     const { threadId, id } = req.params;
     const result = await query("SELECT video_path, status FROM candidates WHERE thread_id = $1", [threadId]);
@@ -265,7 +327,7 @@ router.post("/interviews/:id/retry-analysis/:threadId", async (req, res, next) =
 });
 
 // POST /admin/interviews/:id/reject/:threadId — manually reject a candidate
-router.post("/interviews/:id/reject/:threadId", async (req, res, next) => {
+router.post("/interviews/:id/reject/:threadId", requireAdmin, async (req, res, next) => {
   try {
     await rejectCandidateById(req.params.threadId);
     res.redirect(`/admin/interviews/${req.params.id}`);
@@ -275,7 +337,7 @@ router.post("/interviews/:id/reject/:threadId", async (req, res, next) => {
 });
 
 // POST /admin/interviews/:id/delete/:threadId — delete a candidate
-router.post("/interviews/:id/delete/:threadId", async (req, res, next) => {
+router.post("/interviews/:id/delete/:threadId", requireAdmin, async (req, res, next) => {
   try {
     const result = await query("DELETE FROM candidates WHERE thread_id = $1 RETURNING thread_id", [req.params.threadId]);
     if (!result.rows.length) return res.status(404).send("Candidate not found");
@@ -286,7 +348,7 @@ router.post("/interviews/:id/delete/:threadId", async (req, res, next) => {
 });
 
 // POST /admin/interviews/:id/bulk-reject-email — send rejection emails to all unsent rejected
-router.post("/interviews/:id/bulk-reject-email", async (req, res, next) => {
+router.post("/interviews/:id/bulk-reject-email", requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -313,7 +375,7 @@ router.post("/interviews/:id/bulk-reject-email", async (req, res, next) => {
 });
 
 // POST /admin/interviews/:id/bulk-outcome-email — send selection/fail outcome emails
-router.post("/interviews/:id/bulk-outcome-email", async (req, res, next) => {
+router.post("/interviews/:id/bulk-outcome-email", requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await sendBulkOutcomeEmails(id);
@@ -325,12 +387,12 @@ router.post("/interviews/:id/bulk-outcome-email", async (req, res, next) => {
 });
 
 // GET /admin/interviews/:id/embed-status — SSE-like status for JD embedding
-router.get("/interviews/:id/embed-status", async (req, res) => {
+router.get("/interviews/:id/embed-status", requireAdmin, async (req, res) => {
   res.json(getEmbedStatus(req.params.id));
 });
 
 // POST /admin/interviews/:id/delete-interview — delete an entire interview
-router.post("/interviews/:id/delete-interview", async (req, res, next) => {
+router.post("/interviews/:id/delete-interview", requireAdmin, async (req, res, next) => {
   try {
     await query("DELETE FROM interviews WHERE id = $1", [req.params.id]);
     res.redirect("/admin");

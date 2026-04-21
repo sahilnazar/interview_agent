@@ -36,6 +36,7 @@ router.post("/change-password", requireCandidate, async (req, res, next) => {
       return res.render("change-password", { error: "Passwords do not match" });
     }
 
+    const nextPath = req.session?.candidate?.nextPath || "/candidate/interview";
     const hash = await bcrypt.hash(newPassword, 10);
     await query(
       "UPDATE candidates SET password_hash = $1, must_change_password = FALSE WHERE thread_id = $2",
@@ -43,7 +44,8 @@ router.post("/change-password", requireCandidate, async (req, res, next) => {
     );
 
     req.session.candidate.mustChangePassword = false;
-    res.redirect("/candidate/interview");
+    req.session.candidate.nextPath = "/candidate/interview";
+    res.redirect(nextPath);
   } catch (err) {
     next(err);
   }
@@ -184,7 +186,12 @@ router.get("/interview", requireCandidate, async (req, res, next) => {
     if (!result.rows.length) return res.status(404).send("Not found");
 
     const { status } = result.rows[0];
-    const alreadySubmitted = !["AwaitingVideo", "Screening"].includes(status);
+    const recordingAllowed = ["AwaitingVideo", "Screening"].includes(status);
+    if (!recordingAllowed) {
+      return res.redirect("/candidate/dashboard");
+    }
+
+    const alreadySubmitted = status !== "AwaitingVideo";
     res.render("candidate-interview", { alreadySubmitted, status });
   } catch (err) {
     next(err);

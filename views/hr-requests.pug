@@ -1,0 +1,66 @@
+extends layout
+
+block content
+  .page-header
+    a.back-link(href="/admin") ← Interviews
+    h1 HR Assignment Requests
+    if pendingCount > 0
+      span.badge-pending(style="margin-left:auto;padding:8px 16px;background:rgba(255,165,0,.2);color:var(--warning);border-radius:6px") 
+        = pendingCount
+        |  Pending
+
+  if requests && requests.length
+    .card
+      h2 All Requests
+      div(style="overflow-x:auto")
+        table
+          thead
+            tr
+              th Candidate Email
+              th Interview
+              th Status
+              th Top Match %
+              th Created
+              th Actions
+          tbody
+            each r in requests
+              - const suggested = Array.isArray(r.suggested_interviewers) ? r.suggested_interviewers : []
+              - const topMatch = suggested[0]?.interviewer_match_percent || 0
+              - const badgeClass = r.status === 'pending' ? 'badge-warning' : r.status === 'approved' ? 'badge-success' : 'badge-danger'
+              - const badgeLabel = r.status === 'pending' ? 'Pending' : r.status === 'approved' ? 'Approved' : 'Rejected'
+              tr(style="animation:fadeIn 0.3s ease-out;animation-fill-mode:both;animation-delay:0.1s")
+                td= r.candidate_email
+                td= r.interview_title
+                td
+                  span(class=`badge ${badgeClass}`)= badgeLabel
+                td(style="text-align:center;font-weight:600")= topMatch.toFixed(0) + '%'
+                td= r.created_at ? new Date(r.created_at).toLocaleDateString() : ''
+                td.actions-cell
+                  if r.status === 'pending'
+                    a.btn-sm.btn-invite(href=`/admin/hr-requests/${r.id}` style="background:var(--accent)") ➜ Review
+                  else
+                    span(style="color:var(--text-muted);font-size:12px")= r.status.toUpperCase()
+  else
+    .card
+      p(style="color:var(--text-muted);text-align:center;padding:40px 0") No HR assignment requests yet.
+
+  style.
+    .badge-pending { 
+      padding: 8px 12px; 
+      background: rgba(255,165,0,.2); 
+      color: var(--warning); 
+      border-radius: 6px; 
+      font-size: 13px;
+    }
+    .badge-warning {
+      background: rgba(255,165,0,.2);
+      color: var(--warning);
+    }
+    .badge-success {
+      background: rgba(0,255,136,.2);
+      color: var(--success);
+    }
+    .badge-danger {
+      background: rgba(255,71,87,.2);
+      color: var(--danger);
+    }
