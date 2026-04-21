@@ -28,7 +28,7 @@ block content
               - const topMatch = suggested[0]?.interviewer_match_percent || 0
               - const badgeClass = r.status === 'pending' ? 'badge-warning' : r.status === 'approved' ? 'badge-success' : 'badge-danger'
               - const badgeLabel = r.status === 'pending' ? 'Pending' : r.status === 'approved' ? 'Approved' : 'Rejected'
-              tr(style="animation:fadeIn 0.3s ease-out;animation-fill-mode:both;animation-delay:0.1s")
+              tr
                 td= r.candidate_email
                 td= r.interview_title
                 td

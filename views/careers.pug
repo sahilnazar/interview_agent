@@ -86,8 +86,8 @@ html(lang="en")
         font-size: 12px; color: var(--accent); margin-bottom: 28px;
         letter-spacing: .5px; text-transform: uppercase;
       }
-      .hero-badge::before { content: '●'; font-size: 8px; animation: pulse 2s infinite; }
-      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+      .hero-badge::before { content: '●'; font-size: 8px; }
+
       .hero h1 {
         font-size: clamp(42px, 7vw, 80px);
         line-height: 1.05;
@@ -120,10 +120,10 @@ html(lang="en")
         position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
         z-index: 1; color: var(--text-muted); font-size: 12px;
         display: flex; flex-direction: column; align-items: center; gap: 8px;
-        animation: float 3s ease-in-out infinite;
+
       }
       .hero-scroll-hint::after { content: '↓'; font-size: 18px; }
-      @keyframes float { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
+
 
       /* ── STATS ── */
       .stats-bar {

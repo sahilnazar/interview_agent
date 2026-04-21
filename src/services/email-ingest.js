@@ -150,8 +150,14 @@ export async function startEmailIngest(cvsAutoDir) {
   console.log(`Email ingest: Polling ${cfg.user} on ${cfg.host} every ${cfg.pollInterval}s`);
 
   // Run once immediately, then on interval
-  pollInbox(cvsAutoDir);
-  pollingTimer = setInterval(() => pollInbox(cvsAutoDir), cfg.pollInterval * 1000);
+  pollInbox(cvsAutoDir).catch((err) => {
+    console.error("[EmailIngest] Initial poll failed:", err.message || err);
+  });
+  pollingTimer = setInterval(() => {
+    pollInbox(cvsAutoDir).catch((err) => {
+      console.error("[EmailIngest] Poll failed:", err.message || err);
+    });
+  }, cfg.pollInterval * 1000);
 }
 
 /** Stop the polling loop */

@@ -271,8 +271,8 @@ router.post("/interviews/:id/trigger", requireAdmin, resumeUpload.single("resume
   try {
     const { id } = req.params;
     const { email } = req.body;
-    if (!email) return res.status(400).send("Email is required");
-    if (!req.file) return res.status(400).send("Resume file is required (PDF, DOC, or DOCX)");
+    if (!email) return res.status(400).json({ error: "Email is required" });
+    if (!req.file) return res.status(400).json({ error: "Resume file is required (PDF, DOC, or DOCX)" });
 
     const threadId = uuidv4();
     const config = { configurable: { thread_id: threadId } };
@@ -282,7 +282,12 @@ router.post("/interviews/:id/trigger", requireAdmin, resumeUpload.single("resume
       .then(() => console.log(`Graph completed for ${threadId}`))
       .catch((err) => console.error(`Graph error for ${threadId}:`, err.message));
 
-    res.redirect(`/admin/interviews/${id}`);
+    // Check if this is an AJAX request
+    if (req.headers.accept?.includes('application/json') || req.xhr) {
+      res.json({ success: true, message: `Pipeline started for ${email}`, threadId });
+    } else {
+      res.redirect(`/admin/interviews/${id}`);
+    }
   } catch (err) {
     next(err);
   }

@@ -40,9 +40,9 @@ block content
       h2 Video Interview
       p(style="color:var(--text-muted);font-size:13px;margin-bottom:16px")= question
       form(action="/candidate/upload-video" method="POST" enctype="multipart/form-data")
-        .upload-area(style="border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;background:rgba(10,10,15,0.5);backdrop-filter:blur(5px);transition:all 0.3s ease;margin-bottom:20px")
+        .upload-area(style="border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;background:rgba(10,10,15,0.5);backdrop-filter:blur(5px);margin-bottom:20px")
           label(style="text-transform:none;font-size:14px;color:var(--text);display:block;margin-bottom:12px") 📹 Select your video (MP4, WebM, or QuickTime — max 200MB)
-          input(type="file" name="video" accept="video/mp4,video/webm,video/quicktime" required style="padding:12px;border-radius:8px;background:rgba(10,10,15,0.8);border:1px solid var(--border);color:var(--text);transition:all 0.3s ease")
+          input(type="file" name="video" accept="video/mp4,video/webm,video/quicktime" required style="padding:12px;border-radius:8px;background:rgba(10,10,15,0.8);border:1px solid var(--border);color:var(--text)")
         button.btn(type="submit" style="margin-top:16px") 
           span ▶ 
           | Submit Video

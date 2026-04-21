@@ -32,20 +32,20 @@ block content
         | Save Settings
 
     //- Toast notification (hidden by default)
-    #settings-toast(style="display:none;position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 24px;font-size:14px;z-index:9999;animation:slideIn .3s ease-out;box-shadow:0 4px 12px rgba(0,0,0,.3)")
+    #settings-toast(style="display:none;position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 24px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3)")
       span#toast-message
 
   //- ── Trigger Screening ───────────────────────────────────
   .card
     h2 Trigger Screening
-    form(action=`/admin/interviews/${interview.id}/trigger` method="POST" enctype="multipart/form-data")
+    form(action=`/admin/interviews/${interview.id}/trigger` method="POST" enctype="multipart/form-data" data-ajax="true")
       .input-row
         div
           label Candidate Email
           input(type="email" name="email" required placeholder="applicant@example.com")
         div
           label Resume (PDF, DOC, DOCX)
-          input(type="file" name="resume" accept=".pdf,.doc,.docx" required style="padding:12px;border:2px dashed var(--border);border-radius:8px;background:rgba(10,10,15,0.5);backdrop-filter:blur(5px);transition:all 0.3s ease;cursor:pointer")
+          input(type="file" name="resume" accept=".pdf,.doc,.docx" required style="padding:12px;border:2px dashed var(--border);border-radius:8px;background:rgba(10,10,15,0.5);backdrop-filter:blur(5px);cursor:pointer")
       button.btn(type="submit") 
         span ▶ 
         | Run Pipeline
@@ -88,7 +88,7 @@ block content
             - const hasDetails = !!(parsed || c.video_summary || c.salary_expectation)
             - const videoStatus = c.video_path ? (c.status === 'Done' ? 'Analyzed' : c.status === 'Error' ? 'Analyze Failed' : c.status === 'Rejected' ? 'Mismatch' : 'Submitted') : (c.status === 'VideoReceived' ? 'Processing' : '—')
             - const displayStatus = c.status === 'Done' ? (c.english_score != null ? `Passed ${c.english_score.toFixed(0)}%` : 'Passed') : c.status === 'Rejected' && c.video_summary ? 'Failed Match' : c.status === 'Error' ? 'Analysis Error' : c.status
-            tr(style="animation:fadeIn 0.3s ease-out;animation-fill-mode:both;animation-delay:0.1s")
+            tr
               td= c.email
               td
                 - const s = c.status === 'Done' ? 'done' : c.status === 'Error' ? 'error' : (c.status || '').toLowerCase().replace(/\s+/g,'')
@@ -100,11 +100,11 @@ block content
                     button.summary-toggle(type="button" data-target=`summary-${c.thread_id}`) ▶ Details
               td
                 if c.final_result === 'pass'
-                  span.badge.badge-success(style="animation:pulse 2s infinite") Selected
+                  span.badge.badge-success Selected
                 else if c.final_result === 'fail'
-                  span.badge.badge-danger(style="animation:pulse 2s infinite") Not Selected
+                  span.badge.badge-danger Not Selected
                 else
-                  span(style="color:var(--text-muted);font-size:12px;animation:pulse 1s infinite") Processing
+                  span(style="color:var(--text-muted);font-size:12px") Processing
               td
                 if videoStatus === 'Submitted' || videoStatus === 'Processing'
                   span(style="color:var(--warning);font-size:12px") ⏳ #{videoStatus}

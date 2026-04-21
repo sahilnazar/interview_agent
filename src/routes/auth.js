@@ -48,14 +48,23 @@ router.post("/candidate", async (req, res, next) => {
     const nextPath = sanitizeCandidateNext(req.body.next || req.query.next);
     if (!email || !password) return res.render("login-candidate", { error: "All fields are required", nextPath });
 
-    const result = await query("SELECT * FROM candidates WHERE email = $1", [email]);
+    const result = await query(
+      "SELECT * FROM candidates WHERE email = $1 ORDER BY created_at DESC",
+      [email]
+    );
     if (!result.rows.length) return res.render("login-candidate", { error: "Invalid credentials", nextPath });
 
-    const candidate = result.rows[0];
-    if (!candidate.password_hash) return res.render("login-candidate", { error: "Invalid credentials", nextPath });
+    let candidate = null;
+    for (const row of result.rows) {
+      if (!row.password_hash) continue;
+      const valid = await bcrypt.compare(password, row.password_hash);
+      if (valid) {
+        candidate = row;
+        break;
+      }
+    }
 
-    const valid = await bcrypt.compare(password, candidate.password_hash);
-    if (!valid) return res.render("login-candidate", { error: "Invalid credentials", nextPath });
+    if (!candidate) return res.render("login-candidate", { error: "Invalid credentials", nextPath });
 
     req.session.candidate = {
       threadId: candidate.thread_id,
