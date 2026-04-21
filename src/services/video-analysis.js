@@ -48,14 +48,51 @@ export async function transcribeWithWhisper(videoPath) {
     apiKey: GROQ_API_KEY,
   });
 
-  const transcription = await groqClient.audio.transcriptions.create({
-    file: fs.createReadStream(videoPath),
-    model: "whisper-large-v3",
+  const cleanText = (value = "") => value.replace(/\s+/g, " ").trim();
+  const scoreTranscript = (value = "") => {
+    const cleaned = cleanText(value);
+    if (!cleaned) return 0;
+
+    const words = cleaned.match(/[a-zA-Z][a-zA-Z'.-]*/g) || [];
+    const unique = new Set(words.map((word) => word.toLowerCase()));
+    const veryShortPenalty = cleaned.length < 24 ? 8 : 0;
+
+    return (words.length * 2) + unique.size + Math.min(cleaned.length / 18, 10) - veryShortPenalty;
+  };
+
+  const transcribeOnce = async (options = {}) => {
+    const response = await groqClient.audio.transcriptions.create({
+      file: fs.createReadStream(videoPath),
+      model: "whisper-large-v3",
+      response_format: "verbose_json",
+      ...options,
+    });
+    return cleanText(response?.text || "");
+  };
+
+  const firstPass = await transcribeOnce({
     language: "en",
-    response_format: "json",
+    temperature: 0,
   });
 
-  return transcription.text || "";
+  // Retry with interview-specific prompt if transcript looks too short/weak.
+  const needsRetry = scoreTranscript(firstPass) < 18;
+  if (!needsRetry) return firstPass;
+
+  const secondPass = await transcribeOnce({
+    temperature: 0,
+    prompt: "Interview answer. Candidate may mention name, React, TypeScript, JavaScript, salary expectation. Transcribe exactly what is spoken.",
+  });
+
+  const firstScore = scoreTranscript(firstPass);
+  const secondScore = scoreTranscript(secondPass);
+  const selected = secondScore > firstScore ? secondPass : firstPass;
+
+  console.log(
+    `[Whisper] Multi-pass selected transcript: firstScore=${firstScore.toFixed(1)}, secondScore=${secondScore.toFixed(1)}`
+  );
+
+  return selected;
 }
 
 // ─── 2. Gemini 2.5 Flash — Visual + Behavioural Analysis ─────────────────────
@@ -410,6 +447,9 @@ export async function analyzeCandidateVideo(videoPath, roleContext = {}) {
     console.log("[VideoAnalysis] Starting Groq Whisper transcription...");
     transcript = await transcribeWithWhisper(videoPath);
     console.log(`[VideoAnalysis] Whisper transcript (${transcript.length} chars)`);
+    if (transcript) {
+      console.log(`[VideoAnalysis] Whisper preview: ${transcript.slice(0, 180)}`);
+    }
   } catch (err) {
     whisperError = err.message;
     console.warn("[VideoAnalysis] Whisper failed (continuing without transcript):", err.message);

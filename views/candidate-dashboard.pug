@@ -52,6 +52,12 @@ block content
       h2 Video Interview
       p(style="color:var(--success)") Your video has been received and is being analyzed. Check back for your results.
 
+  if candidate.status === 'Rejected' || candidate.status === 'Error'
+    .card
+      h2 Video Interview
+      p(style="color:var(--warning);font-size:13px;margin-bottom:16px") Your previous video attempt did not pass. You can retry with a new recording.
+      a.btn(href="/candidate/interview") Retry Video Interview
+
   if candidate.status === 'Done'
     .card
       h2 Video Interview

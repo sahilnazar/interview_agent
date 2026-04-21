@@ -132,7 +132,7 @@ block content
               td= c.salary_expectation || '—'
               td= c.created_at ? new Date(c.created_at).toLocaleString() : ''
               td.actions-cell
-                if c.status === 'Error'
+                if (c.status === 'Error' || c.status === 'Rejected') && c.video_path
                   form(action=`/admin/interviews/${interview.id}/retry-analysis/${c.thread_id}` method="POST" style="display:inline")
                     button.btn-sm(type="submit" style="background:#f59e0b;color:#000") ↻ Retry
                 if c.status === 'Rejected'
@@ -280,7 +280,7 @@ block content
       }
 
       let actions = '';
-      if (c.status === 'Error') {
+      if ((c.status === 'Error' || c.status === 'Rejected') && c.video_path) {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/retry-analysis/${c.thread_id}" method="POST" style="display:inline">
           <button class="btn-sm" type="submit" style="background:#f59e0b;color:#000">↻ Retry</button></form>`;
       }

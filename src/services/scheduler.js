@@ -291,15 +291,38 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
     ...parseSkillList(context.jd || ""),
   ]);
 
-  // Get all interviewers who have at least one future available slot.
-  // Skill matching now drives priority instead of fixed interview assignment.
-  const availableInterviewers = await query(
-    `SELECT DISTINCT i.id, i.name, i.email, i.skills
-     FROM interviewers i
-     JOIN interviewer_slots s ON s.interviewer_id = i.id
-     WHERE s.status = 'available'
-       AND s.slot_start > NOW()`
+  // Prefer interview-assigned interviewers first; if none have free slots,
+  // fall back to all available interviewers.
+  const assignedRows = await query(
+    `SELECT interviewer_id
+     FROM interview_interviewers
+     WHERE interview_id = $1`,
+    [interviewId],
   );
+  const assignedInterviewerIds = assignedRows.rows.map((row) => row.interviewer_id);
+
+  let availableInterviewers = { rows: [] };
+  if (assignedInterviewerIds.length > 0) {
+    availableInterviewers = await query(
+      `SELECT DISTINCT i.id, i.name, i.email, i.skills
+       FROM interviewers i
+       JOIN interviewer_slots s ON s.interviewer_id = i.id
+       WHERE i.id = ANY($1::uuid[])
+         AND s.status = 'available'
+         AND s.slot_start > NOW()`,
+      [assignedInterviewerIds],
+    );
+  }
+
+  if (!availableInterviewers.rows.length) {
+    availableInterviewers = await query(
+      `SELECT DISTINCT i.id, i.name, i.email, i.skills
+       FROM interviewers i
+       JOIN interviewer_slots s ON s.interviewer_id = i.id
+       WHERE s.status = 'available'
+         AND s.slot_start > NOW()`
+    );
+  }
 
   if (!availableInterviewers.rows.length) return [];
 
@@ -498,7 +521,19 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
   // Apply the same HR gate used by manual scheduling.
   const suggestions = await suggestInterviewersForCandidate(candidateId, interviewId, 5);
   const topMatch = suggestions[0]?.interviewer_match_percent || 0;
-  if (suggestions.length > 0 && topMatch < INTERVIEWER_MATCH_THRESHOLD) {
+  const interviewSkillsResult = await query(
+    "SELECT required_skills FROM interviews WHERE id = $1 LIMIT 1",
+    [interviewId],
+  );
+  const interviewRequiredSkills = parseSkillList(interviewSkillsResult.rows[0]?.required_skills || "");
+  const hasAnyInterviewSkillOverlap = interviewRequiredSkills.length === 0
+    ? true
+    : suggestions.some((item) => {
+        const interviewerSkills = parseSkillList(item.skills || []);
+        return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
+      });
+
+  if (suggestions.length > 0 && topMatch < INTERVIEWER_MATCH_THRESHOLD && !hasAnyInterviewSkillOverlap) {
     const pendingRequest = await query(
       `SELECT id
        FROM interviewer_assignment_requests
@@ -511,7 +546,7 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
     );
 
     if (!pendingRequest.rows.length) {
-      const reason = `Low-skill match (${topMatch.toFixed(0)}%) — HR review required`;
+      const reason = `Low-skill match (${topMatch.toFixed(0)}%) with no interview-skill overlap — HR review required`;
       const requestId = await createInterviewerAssignmentRequest(
         candidateId,
         interviewId,

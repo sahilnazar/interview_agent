@@ -305,7 +305,7 @@ router.post("/interviews/:id/reselect/:threadId", requireAdmin, async (req, res,
   }
 });
 
-// POST /admin/interviews/:id/retry-analysis/:threadId — re-run video analysis on Error status
+// POST /admin/interviews/:id/retry-analysis/:threadId — re-run video analysis on failed statuses
 router.post("/interviews/:id/retry-analysis/:threadId", requireAdmin, async (req, res, next) => {
   try {
     const { threadId, id } = req.params;
@@ -313,11 +313,25 @@ router.post("/interviews/:id/retry-analysis/:threadId", requireAdmin, async (req
     if (!result.rows.length) return res.status(404).send("Candidate not found");
 
     const { video_path, status } = result.rows[0];
-    if (status !== "Error") return res.status(409).send("Candidate is not in Error status");
+    const retryableStatuses = ["Error", "Rejected"];
+    if (!retryableStatuses.includes(status)) {
+      return res.status(409).send("Candidate must be in failed status (Error/Rejected) to retry analysis");
+    }
     if (!video_path) return res.status(400).send("No video file found for this candidate — candidate must re-upload");
 
-    // Reset status to VideoReceived before retrying
-    await query("UPDATE candidates SET status = 'VideoReceived' WHERE thread_id = $1", [threadId]);
+    // Reset status and stale analysis fields before retrying.
+    await query(
+      `UPDATE candidates
+       SET status = 'VideoReceived',
+           english_score = NULL,
+           confidence_score = NULL,
+           skills = NULL,
+           salary_expectation = NULL,
+           video_summary = NULL,
+           video_transcript = NULL
+       WHERE thread_id = $1`,
+      [threadId]
+    );
 
     // Fire analysis in background
     const { analyzeVideoForCandidate } = await import("../graph/actions.js");

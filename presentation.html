@@ -37,12 +37,11 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      padding: 48px 60px;
+      padding: 60px 80px;
       opacity: 0;
       transform: translateX(60px);
       transition: opacity .5s ease, transform .5s ease;
       pointer-events: none;
-      overflow: hidden;
     }
     .slide.active {
       opacity: 1;
@@ -201,9 +200,9 @@
     .vs-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      gap: 24px;
       width: 100%;
-      max-width: 100%;
+      max-width: 1000px;
     }
     .vs-col { display: flex; flex-direction: column; gap: 12px; }
     .vs-col h3 { font-family: 'Syne', sans-serif; font-size: 18px; margin-bottom: 4px; }
@@ -223,13 +222,13 @@
     .sol-item .icon  { color: var(--accent2); font-size: 16px; }
 
     /* ── Slide 3: Feature Pipeline ────────────── */
-    #slide-3 { align-items: center; gap: 20px; }
+    #slide-3 { align-items: center; gap: 32px; }
     .pipeline {
       display: flex;
       align-items: stretch;
       gap: 0;
       width: 100%;
-      max-width: 100%;
+      max-width: 1100px;
     }
     .pipe-step {
       flex: 1;
@@ -264,9 +263,9 @@
     .features-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
+      gap: 14px;
       width: 100%;
-      max-width: 100%;
+      max-width: 1100px;
     }
     .feat-card {
       background: var(--glass);
@@ -282,13 +281,13 @@
     .feat-card p { font-size: 11px; color: var(--muted); line-height: 1.6; }
 
     /* ── Slide 4: Tech Stack ──────────────────── */
-    #slide-4 { align-items: flex-start; gap: 20px; }
+    #slide-4 { align-items: flex-start; gap: 28px; }
     .tech-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
+      gap: 16px;
       width: 100%;
-      max-width: 100%;
+      max-width: 1100px;
     }
     .tech-category h4 {
       font-family: 'Syne', sans-serif;
@@ -316,9 +315,8 @@
     #slide-5 { text-align: center; gap: 32px; }
     .stat-row {
       display: flex;
-      gap: 20px;
+      gap: 32px;
       justify-content: center;
-      flex-wrap: wrap;
     }
     .stat-box {
       background: var(--glass);
@@ -488,8 +486,72 @@
     </div>
   </div>
 
-  <!-- ── SLIDE 5: Closing ────────────────────────────── -->
+  <!-- ── SLIDE 5: Background Agents ────────────────── -->
   <div class="slide" id="slide-5">
+    <div class="label">Autonomous Agents &amp; Workers</div>
+    <h2 class="h2"><span class="gradient-text">8 Specialized</span> background agents</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;width:100%;max-width:1100px;">
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">📁</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">CV Watcher</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Monitors cvs/ directory for new resume files, triggers LangGraph pipeline automatically</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">📧</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Email Ingest Agent</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Polls IMAP inbox for resume attachments, extracts &amp; saves to cvs/auto/ folder</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">🎥</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Video Analysis Agent</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Transcribes with Groq Whisper, analyzes with Gemini Vision, falls back to Groq LLM</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">🧠</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Resume Scoring Agent</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Scores resume using RAG + pgvector embeddings against job description</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">🎯</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Interview Matcher</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Stage A: Vector similarity search. Stage B: Groq LLM confirmation for final pick</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">📅</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Auto-Scheduler Agent</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Assigns candidates to skill-matched interviewers, routes low-matches to HR approval</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">💌</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Email Sending Agent</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Sends invitations, rejections, scheduling confirmations &amp; HR notifications</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <span style="font-size:18px">📬</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Bulk Outcome Worker</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Sends bulk pass/fail notification emails on schedule (daily at configured time)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 6: Closing ────────────────────────────── -->
+  <div class="slide" id="slide-6">
     <div class="label">Impact &amp; Summary</div>
     <h2 class="h2">One platform.<br/><span class="gradient-text">Zero manual bottlenecks.</span></h2>
     <div class="stat-row">
@@ -531,7 +593,7 @@
 <nav class="nav">
   <button onclick="prev()">← Prev</button>
   <div id="dots" style="display:flex;gap:8px;align-items:center"></div>
-  <span class="slide-num" id="slide-num">1 / 5</span>
+  <span class="slide-num" id="slide-num">1 / 6</span>
   <button onclick="next()">Next →</button>
 </nav>
 

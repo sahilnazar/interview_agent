@@ -186,12 +186,12 @@ router.get("/interview", requireCandidate, async (req, res, next) => {
     if (!result.rows.length) return res.status(404).send("Not found");
 
     const { status } = result.rows[0];
-    const recordingAllowed = ["AwaitingVideo", "Screening"].includes(status);
+    const recordingAllowed = ["AwaitingVideo", "Screening", "Rejected", "Error"].includes(status);
     if (!recordingAllowed) {
       return res.redirect("/candidate/dashboard");
     }
 
-    const alreadySubmitted = status !== "AwaitingVideo";
+    const alreadySubmitted = ["VideoReceived", "Done"].includes(status);
     res.render("candidate-interview", { alreadySubmitted, status });
   } catch (err) {
     next(err);
@@ -230,15 +230,25 @@ router.post("/interview/upload", (req, res) => {
       const { threadId } = req.session.candidate;
       console.log(`[Upload] Received video from ${threadId}: ${req.file.originalname} (${req.file.size} bytes)`);
 
-      const dbResult = await query("SELECT status FROM candidates WHERE thread_id = $1", [threadId]);
+      const dbResult = await query("SELECT status, video_path FROM candidates WHERE thread_id = $1", [threadId]);
       if (!dbResult.rows.length) {
         return res.status(404).json({ error: "Candidate not found" });
       }
 
-      const { status } = dbResult.rows[0];
-      // Accept upload if AwaitingVideo or Screening (pipeline may not have set status yet)
-      if (!["AwaitingVideo", "Screening"].includes(status)) {
+      const { status, video_path: previousVideoPath } = dbResult.rows[0];
+      // Accept upload for initial and retry states.
+      if (!["AwaitingVideo", "Screening", "Rejected", "Error"].includes(status)) {
         return res.status(409).json({ error: "Video already submitted — check your dashboard" });
+      }
+
+      // Remove previous uploaded video so candidate can submit a clean retry.
+      if (previousVideoPath && fs.existsSync(previousVideoPath)) {
+        try {
+          fs.unlinkSync(previousVideoPath);
+          console.log(`[Upload] Deleted previous video for ${threadId}: ${previousVideoPath}`);
+        } catch (unlinkErr) {
+          console.warn(`[Upload] Could not delete previous video for ${threadId}:`, unlinkErr.message || unlinkErr);
+        }
       }
 
       // Rename file with correct extension (default .webm for webcam blobs)
@@ -248,7 +258,16 @@ router.post("/interview/upload", (req, res) => {
       fs.renameSync(req.file.path, finalPath);
 
       await query(
-        "UPDATE candidates SET video_path = $1, status = 'VideoReceived' WHERE thread_id = $2",
+        `UPDATE candidates
+         SET video_path = $1,
+             status = 'VideoReceived',
+             video_summary = NULL,
+             video_transcript = NULL,
+             english_score = NULL,
+             confidence_score = NULL,
+             skills = NULL,
+             salary_expectation = NULL
+         WHERE thread_id = $2`,
         [finalPath, threadId]
       );
 
