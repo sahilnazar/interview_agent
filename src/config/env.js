@@ -15,6 +15,7 @@ export function validateEnv() {
 }
 
 export const PORT = parseInt(process.env.PORT || "3000", 10);
+export const HOST = (process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 
 export const INTERVIEW_QUESTION =
   "Record a 2–3 minute video introducing yourself, discussing your relevant " +
