@@ -6,7 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "mcp:node-tools": "node src/services/mcp-node-tools-server.js"
   },
   "dependencies": {
     "@langchain/core": "^1.1.31",

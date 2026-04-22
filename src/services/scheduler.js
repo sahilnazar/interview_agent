@@ -18,6 +18,7 @@ import { sendEmail, sendSelectionEmail, sendNotSelectedEmail, sendHrApprovalRequ
 import { callWithRetry, getGroqModel } from "../graph/helpers.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
+import { isMCPAvailable, scheduleCandidateViaMCP, autoAssignAndConfirmViaMCP } from "./mcp.js";
 
 const BASE_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 const AUTO_SCHEDULE_INTERVAL_MS = parseInt(process.env.AUTO_SCHEDULE_INTERVAL_MS || "180000", 10);
@@ -431,6 +432,23 @@ ${slotList}`;
  * 3. Email candidate with slot choices
  */
 export async function scheduleCandidate(candidateId, interviewId) {
+  if (isMCPAvailable()) {
+    try {
+      const mcpResult = await scheduleCandidateViaMCP({ candidateId, interviewId });
+      if (typeof mcpResult?.scheduled === "boolean") {
+        return {
+          scheduled: mcpResult.scheduled,
+          slotCount: mcpResult.slotCount,
+          reason: mcpResult.reason,
+          alreadyScheduled: mcpResult.alreadyScheduled,
+          scheduledId: mcpResult.scheduledId,
+        };
+      }
+    } catch (err) {
+      console.warn(`MCP schedule_candidate failed for ${candidateId}, falling back local: ${err.message}`);
+    }
+  }
+
   const candidateResult = await query(
     "SELECT * FROM candidates WHERE thread_id = $1",
     [candidateId],
@@ -499,6 +517,26 @@ export async function scheduleCandidate(candidateId, interviewId) {
  * - candidate + interviewer get confirmation emails with meet link and slot
  */
 export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
+  if (isMCPAvailable()) {
+    try {
+      const mcpResult = await autoAssignAndConfirmViaMCP({ candidateId, interviewId });
+      if (typeof mcpResult?.scheduled === "boolean") {
+        return {
+          scheduled: mcpResult.scheduled,
+          reason: mcpResult.reason,
+          alreadyScheduled: mcpResult.alreadyScheduled,
+          scheduledId: mcpResult.scheduledId,
+          interviewerId: mcpResult.interviewerId,
+          slotStart: mcpResult.slotStart,
+          slotEnd: mcpResult.slotEnd,
+          requestId: mcpResult.requestId,
+        };
+      }
+    } catch (err) {
+      console.warn(`MCP auto_assign_and_confirm_candidate failed for ${candidateId}, falling back local: ${err.message}`);
+    }
+  }
+
   const existing = await query(
     `SELECT si.id
      FROM scheduled_interviews si
