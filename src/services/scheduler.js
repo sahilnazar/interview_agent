@@ -518,7 +518,7 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
   );
   if (!candidateResult.rows.length) throw new Error("Candidate not found");
 
-  // Apply the same HR gate used by manual scheduling.
+  // Apply required-skill overlap + HR gate used by manual scheduling.
   const suggestions = await suggestInterviewersForCandidate(candidateId, interviewId, 5);
   const topMatch = suggestions[0]?.interviewer_match_percent || 0;
   const interviewSkillsResult = await query(
@@ -529,9 +529,40 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
   const hasAnyInterviewSkillOverlap = interviewRequiredSkills.length === 0
     ? true
     : suggestions.some((item) => {
-        const interviewerSkills = parseSkillList(item.skills || []);
-        return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
-      });
+      const interviewerSkills = parseSkillList(item.skills || []);
+      return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
+    });
+
+  // For interviews with explicit required skills, do not auto-schedule to unrelated skill sets.
+  if (suggestions.length > 0 && interviewRequiredSkills.length > 0 && !hasAnyInterviewSkillOverlap) {
+    const pendingRequest = await query(
+      `SELECT id
+       FROM interviewer_assignment_requests
+       WHERE candidate_id = $1
+         AND interview_id = $2
+         AND status = 'pending'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [candidateId, interviewId],
+    );
+
+    if (!pendingRequest.rows.length) {
+      const reason = "No interviewer with required interview-skill overlap is currently available — HR review required";
+      const requestId = await createInterviewerAssignmentRequest(
+        candidateId,
+        interviewId,
+        suggestions,
+        reason,
+      );
+      return { scheduled: false, reason: "hr_review_required", requestId };
+    }
+
+    return {
+      scheduled: false,
+      reason: "hr_review_pending",
+      requestId: pendingRequest.rows[0].id,
+    };
+  }
 
   if (suggestions.length > 0 && topMatch < INTERVIEWER_MATCH_THRESHOLD && !hasAnyInterviewSkillOverlap) {
     const pendingRequest = await query(
@@ -563,7 +594,25 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
     };
   }
 
-  const slots = await findAvailableSlots(interviewId, candidateId, 1);
+  let slots = await findAvailableSlots(interviewId, candidateId, 3);
+
+  // If required skills are defined, prefer slots from interviewers who overlap with those skills.
+  if (interviewRequiredSkills.length > 0 && suggestions.length > 0) {
+    const overlapInterviewerIds = new Set(
+      suggestions
+        .filter((item) => {
+          const interviewerSkills = parseSkillList(item.skills || []);
+          return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
+        })
+        .map((item) => item.interviewer_id),
+    );
+
+    if (overlapInterviewerIds.size > 0) {
+      const filtered = slots.filter((slot) => overlapInterviewerIds.has(slot.interviewer_id));
+      if (filtered.length > 0) slots = filtered;
+    }
+  }
+
   if (!slots.length) {
     return { scheduled: false, reason: "no_slots" };
   }
