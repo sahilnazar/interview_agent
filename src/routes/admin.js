@@ -77,7 +77,7 @@ router.post("/hr-requests/:requestId/approve/:interviewerId", requireAdmin, asyn
 });
 
 // POST /admin/hr-requests/:requestId/reject — HR rejects the request
-router.post("/admin/hr-requests/:requestId/reject", requireAdmin, async (req, res, next) => {
+router.post("/hr-requests/:requestId/reject", requireAdmin, async (req, res, next) => {
   try {
     const { requestId } = req.params;
     const { notes } = req.body;
@@ -358,10 +358,28 @@ router.post("/interviews/:id/reject/:threadId", requireAdmin, async (req, res, n
 // POST /admin/interviews/:id/delete/:threadId — delete a candidate
 router.post("/interviews/:id/delete/:threadId", requireAdmin, async (req, res, next) => {
   try {
+    // Cancel linked schedules first and release held slots so delete cannot crash on FK dependencies.
+    await query(
+      `WITH affected AS (
+         UPDATE scheduled_interviews
+         SET status = 'cancelled'
+         WHERE candidate_id = $1
+         RETURNING slot_id
+       )
+       UPDATE interviewer_slots
+       SET status = 'available'
+       WHERE id = ANY(SELECT slot_id FROM affected)
+         AND id IS NOT NULL`,
+      [req.params.threadId]
+    );
+
     const result = await query("DELETE FROM candidates WHERE thread_id = $1 RETURNING thread_id", [req.params.threadId]);
     if (!result.rows.length) return res.status(404).send("Candidate not found");
     res.redirect(`/admin/interviews/${req.params.id}`);
   } catch (err) {
+    if (err?.code === "23503") {
+      return res.status(409).send("Candidate cannot be deleted yet because related records still exist.");
+    }
     next(err);
   }
 });

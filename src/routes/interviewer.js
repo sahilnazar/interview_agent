@@ -361,7 +361,7 @@ router.get("/confirm/:token", async (req, res, next) => {
 router.post("/confirm/:token", async (req, res, next) => {
   try {
     const { token } = req.params;
-    const { decision } = req.body;
+    const decision = String(req.body?.decision || "").toLowerCase();
 
     const result = await query(
       "SELECT * FROM scheduled_interviews WHERE interviewer_token = $1",
@@ -370,6 +370,15 @@ router.post("/confirm/:token", async (req, res, next) => {
     if (!result.rows.length)
       return res.status(404).send("Link invalid or expired");
     const si = result.rows[0];
+
+    if (!["confirm", "reject"].includes(decision)) {
+      return res.render("schedule-respond", {
+        si,
+        role: "interviewer",
+        token,
+        error: "Invalid action. Please choose Confirm or Decline.",
+      });
+    }
 
     if (!["pending_interviewer", "pending_candidate"].includes(si.status)) {
       return res.render("schedule-respond", {

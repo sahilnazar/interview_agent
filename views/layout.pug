@@ -626,17 +626,13 @@ html(lang="en" style="background:#0a0a0f")
           }
 
           // For regular forms (not AJAX)
-          // Don't show loader for forms that open confirm dialogs that might be cancelled
-          // We use a small delay so cancellation (e.g. confirm=false) hides it again
-          if (form.getAttribute('onsubmit')) {
-            // Has a confirm — wait a tick to see if it was actually submitted
-            setTimeout(function () {
-              // If we are still on the page, form was not cancelled by confirm
-              showLoader();
-            }, 50);
-          } else {
-            showLoader();
+          // Respect canceled submissions (e.g., confirm() returned false).
+          if (e.defaultPrevented) {
+            hideLoader();
+            return false;
           }
+
+          showLoader();
         });
 
         // Hide loader when browser navigates back (bfcache restore)

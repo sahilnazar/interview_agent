@@ -320,6 +320,7 @@ router.get("/schedule/accept/:token", async (req, res, next) => {
 router.post("/schedule/accept/:token", async (req, res, next) => {
   try {
     const { token } = req.params;
+    const decision = String(req.body?.decision || "confirm").toLowerCase();
     const result = await query(
       "SELECT * FROM scheduled_interviews WHERE candidate_token = $1",
       [token]
@@ -329,6 +330,20 @@ router.post("/schedule/accept/:token", async (req, res, next) => {
 
     if (si.status !== "pending_candidate") {
       return res.render("schedule-done", { role: "candidate", decision: "already", slot_start: si.slot_start });
+    }
+
+    if (decision !== "confirm") {
+      await query(
+        "UPDATE scheduled_interviews SET status = 'rejected_candidate' WHERE id = $1",
+        [si.id]
+      );
+      if (si.slot_id) {
+        await query(
+          "UPDATE interviewer_slots SET status = 'available' WHERE id = $1",
+          [si.slot_id]
+        );
+      }
+      return res.render("schedule-done", { role: "candidate", decision: "reject", slot_start: si.slot_start });
     }
 
     const guard = await query(
