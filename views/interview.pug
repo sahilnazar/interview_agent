@@ -120,7 +120,7 @@ block content
                   | —
               td= c.created_at ? new Date(c.created_at).toLocaleString() : ''
               td.actions-cell
-                form(action=`/admin/interviews/${interview.id}/download-cv/${c.thread_id}` method="GET" style="display:inline")
+                form(action=`/admin/interviews/${interview.id}/download-cv/${c.thread_id}` method="GET" style="display:inline" data-no-loader="true")
                   button.btn-sm(type="submit" title="Download CV" style="background:var(--accent2);color:#000") 📥
                 if (c.status === 'Error' || c.status === 'Rejected') && c.video_path
                   form(action=`/admin/interviews/${interview.id}/retry-analysis/${c.thread_id}` method="POST" style="display:inline")
@@ -267,7 +267,7 @@ block content
         : 'badge badge-' + (c.status || '').toLowerCase().replace(/\s+/g, '');
 
 
-      let actions = `<form action="/admin/interviews/${INTERVIEW_ID}/download-cv/${c.thread_id}" method="GET" style="display:inline">
+      let actions = `<form action="/admin/interviews/${INTERVIEW_ID}/download-cv/${c.thread_id}" method="GET" style="display:inline" data-no-loader="true">
         <button class="btn-sm" type="submit" title="Download CV" style="background:var(--accent2);color:#000">📥</button></form>`;
       if ((c.status === 'Error' || c.status === 'Rejected') && c.video_path) {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/retry-analysis/${c.thread_id}" method="POST" style="display:inline">

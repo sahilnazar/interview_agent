@@ -632,6 +632,11 @@ html(lang="en" style="background:#0a0a0f")
             return false;
           }
 
+          // Skip loader for file downloads — no page navigation occurs so loader would stick
+          if (form.getAttribute('data-no-loader') === 'true') {
+            return;
+          }
+
           showLoader();
         });
 
