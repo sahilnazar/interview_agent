@@ -129,9 +129,9 @@ export function startCVWatcher(cvsDir, processedDir, compiledGraph) {
         console.error(`CV watcher: Graph error for ${candidateEmail}:`, err.message);
       }
 
-      const dest = path.join(processedDir, `${Date.now()}-${basename}`);
+      const dest = path.join(processedDir, `${threadId}-${basename}`);
       fs.renameSync(filePath, dest);
-      console.log(`CV watcher: Moved ${basename} → processed/`);
+      console.log(`CV watcher: Moved ${basename} → processed/ (threadId prefix)`);
     } catch (err) {
       console.error(`CV watcher: Error processing ${basename}:`, err.message);
     } finally {

@@ -37,19 +37,19 @@ block content
               tr
                 th.actions-cell(style="width:100px") Select
                 th Name
-                th Email
                 th Department
                 th Skills
                 th Match %
+                th AI Assessment
             tbody
               each s in suggested
-                tr
+                - const canInterview = s.can_interview !== false
+                tr(style=canInterview ? '' : 'opacity:0.6')
                   td.actions-cell
                     form(action=`/admin/hr-requests/${request.id}/approve/${s.interviewer_id}` method="POST" style="display:inline")
                       textarea(name="notes" placeholder="Approval notes (optional)" style="display:none")
                       button.btn-sm.btn-invite(type="submit") Approve
                   td= s.interviewer_name
-                  td= s.interviewer_email
                   td= s.department || '—'
                   td
                     if s.skills && s.skills.length
@@ -58,6 +58,11 @@ block content
                     else
                       span(style="color:var(--text-muted)") —
                   td(style="text-align:center;font-weight:600;color:var(--accent)")= s.interviewer_match_percent.toFixed(0) + '%'
+                  td(style="font-size:12px;color:var(--text-muted);max-width:220px")
+                    if s.ai_match_reason
+                      span(style=`color:${canInterview ? 'var(--success)' : 'var(--danger)'}`)= (canInterview ? '✓ ' : '✗ ') + s.ai_match_reason
+                    else
+                      span —
       else
         p(style="color:var(--text-muted)") No suggested interviewers available.
 

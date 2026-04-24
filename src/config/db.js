@@ -195,6 +195,7 @@ export async function initDB() {
     ['bulk_mail_enabled', 'false'],
     ['bulk_mail_send_time', '18:00'],
     ['bulk_mail_last_sent', ''],
+    ['hr_notification_emails', process.env.HR_NOTIFICATION_EMAILS || ''],
   ];
   for (const [key, value] of imapDefaults) {
     await query(

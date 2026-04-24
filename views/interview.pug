@@ -72,22 +72,19 @@ block content
           tr
             th Email
             th Status
-            th Result
-            th Video
             th Assigned
             th Resume Score
-            th English Score
-            th Skills
-            th Salary Exp.
+            th Interviewer
+            th Interview Date
             th Created
             th Actions
         tbody#candidates-body
           each c in candidates
             - let parsed = null
             - try { parsed = c.summary ? JSON.parse(c.summary) : null; } catch (e) { parsed = c.summary ? { summary: c.summary, matching: [], missing: [] } : null; }
-            - const hasDetails = !!(parsed || c.video_summary || c.salary_expectation)
+            - const hasDetails = !!(parsed || c.video_summary)
             - const videoStatus = c.video_path ? (c.status === 'Done' ? 'Analyzed' : c.status === 'Error' ? 'Analyze Failed' : c.status === 'Rejected' ? 'Mismatch' : 'Submitted') : (c.status === 'VideoReceived' ? 'Processing' : '—')
-            - const displayStatus = c.status === 'Done' ? (c.english_score != null ? `Passed ${c.english_score.toFixed(0)}%` : 'Passed') : c.status === 'Rejected' && c.video_summary ? 'Failed Match' : c.status === 'Error' ? 'Analysis Error' : c.status
+            - const displayStatus = (c.scheduled && c.status === 'Done') ? 'Interview Scheduled' : c.status === 'Done' ? 'Shortlisted' : c.status === 'Rejected' && c.video_summary ? 'Failed Match' : c.status === 'Error' ? 'Analysis Error' : c.status
             tr
               td= c.email
               td
@@ -95,73 +92,80 @@ block content
                 span(class=`badge badge-${s}`)= displayStatus
                 if c.status === 'Rejected' && c.rejection_sent
                   span.badge-sent(title="Rejection email sent") ✉
+                div(style="margin-top:6px;font-size:11px")
+                  if videoStatus === 'Submitted' || videoStatus === 'Processing'
+                    span(style="color:var(--warning)") ⏳ #{videoStatus}
+                  else if videoStatus === 'Analyzed'
+                    span(style="color:var(--success)") ✔ Analyzed
+                  else if videoStatus === 'Mismatch'
+                    span(style="color:var(--danger)") ✖ Mismatch
+                  else if videoStatus === 'Analyze Failed'
+                    span(style="color:var(--danger)") ✖ Failed
+                  else
+                    span(style="color:var(--text-muted)") —
                 if hasDetails
-                  div(style="margin-top:8px")
+                  div(style="margin-top:6px")
                     button.summary-toggle(type="button" data-target=`summary-${c.thread_id}`) ▶ Details
-              td
-                if c.final_result === 'pass'
-                  span.badge.badge-success Selected
-                else if c.final_result === 'fail'
-                  span.badge.badge-danger Not Selected
-                else
-                  span(style="color:var(--text-muted);font-size:12px") Processing
-              td
-                if videoStatus === 'Submitted' || videoStatus === 'Processing'
-                  span(style="color:var(--warning);font-size:12px") ⏳ #{videoStatus}
-                else if videoStatus === 'Analyzed'
-                  span(style="color:var(--success);font-size:12px") ✔ Analyzed
-                else if videoStatus === 'Mismatch'
-                  span(style="color:var(--danger);font-size:12px") ✖ Mismatch
-                else if videoStatus === 'Analyze Failed'
-                  span(style="color:var(--danger);font-size:12px") ✖ Failed
-                else
-                  span(style="color:var(--text-muted);font-size:12px") —
               td
                 if c.assignment_method === 'auto'
                   span.badge.badge-auto(title=`Auto-assigned with ${c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : '?'} confidence`) Auto #{c.match_confidence != null ? c.match_confidence.toFixed(0) + '%' : ''}
                 else
                   span(style="color:var(--text-muted);font-size:12px") Manual
               td.score= c.resume_score != null ? c.resume_score.toFixed(1) + '%' : '—'
-              td.score= c.english_score != null ? c.english_score.toFixed(1) : '—'
+              td= c.interviewer_name || '—'
               td
-                if c.skills && c.skills.length
-                  each sk in c.skills
-                    span.skill-chip= sk
+                if c.interview_scheduled_at
+                  = new Date(c.interview_scheduled_at).toLocaleString()
                 else
                   | —
-              td= c.salary_expectation || '—'
               td= c.created_at ? new Date(c.created_at).toLocaleString() : ''
               td.actions-cell
+                form(action=`/admin/interviews/${interview.id}/download-cv/${c.thread_id}` method="GET" style="display:inline")
+                  button.btn-sm(type="submit" title="Download CV" style="background:var(--accent2);color:#000") 📥
                 if (c.status === 'Error' || c.status === 'Rejected') && c.video_path
                   form(action=`/admin/interviews/${interview.id}/retry-analysis/${c.thread_id}` method="POST" style="display:inline")
-                    button.btn-sm(type="submit" style="background:#f59e0b;color:#000") ↻ Retry
+                    button.btn-sm(type="submit" title="Retry Analysis" style="background:#f59e0b;color:#000") 🔄
                 if c.status === 'Rejected'
                   form(action=`/admin/interviews/${interview.id}/reselect/${c.thread_id}` method="POST" style="display:inline")
-                    button.btn-sm.btn-invite(type="submit") ↩ Re-select
+                    button.btn-sm.btn-invite(type="submit" title="Re-select Candidate") ✅
                 if c.status === 'Done' && !c.scheduled
                   form(action=`/admin/interviewers/schedule/${c.thread_id}` method="POST" style="display:inline")
-                    button.btn-sm(type="submit" style="background:var(--accent)") 📅 Schedule
+                    button.btn-sm(type="submit" title="Schedule Interview" style="background:var(--accent)") 📅
                 if c.status === 'Screened' || c.status === 'AwaitingVideo' || c.status === 'Done'
                   form(action=`/admin/interviews/${interview.id}/reject/${c.thread_id}` method="POST" style="display:inline")
-                    button.btn-sm.btn-reject(type="submit") ✗ Reject
+                    button.btn-sm.btn-reject(type="submit" title="Reject Candidate") 🚫
                 form(action=`/admin/interviews/${interview.id}/delete/${c.thread_id}` method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')")
-                  button.btn-sm.btn-delete(type="submit") ✕ Delete
-            if parsed || c.video_summary || c.salary_expectation
+                  button.btn-sm.btn-delete(type="submit" title="Delete Candidate") 🗑️
+            if parsed || c.video_summary
               tr.summary-row(id=`summary-${c.thread_id}` style="display:none")
-                td(colspan="11")
+                td(colspan="9")
                   .summary-box
-                    if c.video_summary
-                      h4 Video Analysis
-                      p= c.video_summary
-                    p(style="margin-top:8px")
-                      strong Salary Expectation:
-                      |  #{c.salary_expectation || 'Not mentioned'}
-                    if c.confidence_score != null
-                      p
-                        strong Confidence Score:
-                        |  #{c.confidence_score.toFixed(1)}
+                    if c.video_summary || c.video_transcript
+                      h4 🎥 Video Analysis
+                      if c.video_transcript
+                        p(style="margin-bottom:6px")
+                          strong What candidate said:
+                        p(style="font-style:italic;color:var(--text-muted);background:rgba(255,255,255,0.03);border-left:3px solid var(--accent);padding:8px 12px;border-radius:4px;line-height:1.7")= c.video_transcript
+                      if c.english_score != null || c.confidence_score != null
+                        p(style="margin-top:10px")
+                          if c.english_score != null
+                            strong English Fluency:
+                            |  #{c.english_score.toFixed(1)} / 10
+                          if c.english_score != null && c.confidence_score != null
+                            |  &nbsp;·&nbsp;
+                          if c.confidence_score != null
+                            strong Confidence:
+                            |  #{c.confidence_score.toFixed(1)} / 10
+                      if c.salary_expectation && c.salary_expectation !== 'Not mentioned'
+                        p
+                          strong Salary Expectation:
+                          |  #{c.salary_expectation}
+                      if c.video_summary
+                        - const cleanSummary = c.video_summary.replace(/\s*Auto-screen (note|result):[^.]+\./g, '').trim()
+                        if cleanSummary
+                          p(style="margin-top:8px")= cleanSummary
                     if interview.required_skills
-                      p
+                      p(style="margin-top:8px")
                         strong Required Skills:
                         |  #{interview.required_skills}
                     if interview.salary_range
@@ -169,9 +173,9 @@ block content
                         strong Role Salary Range:
                         |  #{interview.salary_range}
                     if parsed
-                      h4(style="margin-top:10px") Resume Summary
+                      h4(style="margin-top:12px") 📄 Resume Analysis
                       p= parsed.summary
-                      h4 ✓ Matching
+                      h4(style="margin-top:8px") ✓ Matching
                       div
                         each m in (parsed.matching || [])
                           span.match-chip= m
@@ -242,9 +246,6 @@ block content
     });
 
     function renderRow(c) {
-      const skills = (c.skills && c.skills.length)
-        ? c.skills.map(s => `<span class="skill-chip">${esc(s)}</span>`).join('')
-        : '—';
       const score = c.resume_score != null ? Number(c.resume_score).toFixed(1) + '%' : '—';
 
       let parsed = null;
@@ -255,49 +256,37 @@ block content
       const hasDetails = Boolean(parsed || c.video_summary || c.salary_expectation);
 
       // Display status
-      const displayStatus = c.status === 'Done'
-        ? (c.english_score != null ? `Passed ${Number(c.english_score).toFixed(0)}%` : 'Passed')
+      const displayStatus = c.scheduled && c.status === 'Done'
+        ? 'Interview Scheduled'
+        : c.status === 'Done' ? 'Shortlisted'
         : (c.status === 'Rejected' && c.video_summary) ? 'Failed Match'
         : c.status === 'Error' ? 'Analysis Error' : c.status;
-      const badgeCls = c.status === 'Done' ? 'badge badge-done'
+      const badgeCls = (c.scheduled && c.status === 'Done') ? 'badge badge-scheduled'
+        : c.status === 'Done' ? 'badge badge-done'
         : c.status === 'Error' ? 'badge badge-error'
         : 'badge badge-' + (c.status || '').toLowerCase().replace(/\s+/g, '');
 
-      // Video column
-      let videoCell = '<span style="color:var(--text-muted);font-size:12px">—</span>';
-      if (c.video_path) {
-        if (c.status === 'Done') {
-          videoCell = '<span style="color:var(--success);font-size:12px">✔ Analyzed</span>';
-        } else if (c.status === 'Rejected') {
-          videoCell = '<span style="color:var(--danger);font-size:12px">✖ Mismatch</span>';
-        } else if (c.status === 'Error') {
-          videoCell = '<span style="color:var(--danger);font-size:12px">✖ Failed</span>';
-        } else {
-          videoCell = '<span style="color:var(--warning);font-size:12px">⏳ Processing</span>';
-        }
-      } else if (c.status === 'VideoReceived') {
-        videoCell = '<span style="color:var(--warning);font-size:12px">⏳ Processing</span>';
-      }
 
-      let actions = '';
+      let actions = `<form action="/admin/interviews/${INTERVIEW_ID}/download-cv/${c.thread_id}" method="GET" style="display:inline">
+        <button class="btn-sm" type="submit" title="Download CV" style="background:var(--accent2);color:#000">📥</button></form>`;
       if ((c.status === 'Error' || c.status === 'Rejected') && c.video_path) {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/retry-analysis/${c.thread_id}" method="POST" style="display:inline">
-          <button class="btn-sm" type="submit" style="background:#f59e0b;color:#000">↻ Retry</button></form>`;
+          <button class="btn-sm" type="submit" title="Retry Analysis" style="background:#f59e0b;color:#000">🔄</button></form>`;
       }
       if (c.status === 'Rejected') {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/reselect/${c.thread_id}" method="POST" style="display:inline">
-          <button class="btn-sm btn-invite" type="submit">↩ Re-select</button></form>`;
+          <button class="btn-sm btn-invite" type="submit" title="Re-select Candidate">✅</button></form>`;
       }
-      if (c.status === 'Done') {
+      if (c.status === 'Done' && !c.scheduled) {
         actions += `<form action="/admin/interviewers/schedule/${c.thread_id}" method="POST" style="display:inline">
-          <button class="btn-sm" type="submit" style="background:var(--accent)">📅 Schedule</button></form>`;
+          <button class="btn-sm" type="submit" title="Schedule Interview" style="background:var(--accent)">📅</button></form>`;
       }
       if (['Screened', 'AwaitingVideo', 'Done'].includes(c.status)) {
         actions += `<form action="/admin/interviews/${INTERVIEW_ID}/reject/${c.thread_id}" method="POST" style="display:inline">
-          <button class="btn-sm btn-reject" type="submit">✗ Reject</button></form>`;
+          <button class="btn-sm btn-reject" type="submit" title="Reject Candidate">🚫</button></form>`;
       }
       actions += `<form action="/admin/interviews/${INTERVIEW_ID}/delete/${c.thread_id}" method="POST" style="display:inline" onsubmit="return confirm('Delete this candidate?')">
-        <button class="btn-sm btn-delete" type="submit">✕ Delete</button></form>`;
+        <button class="btn-sm btn-delete" type="submit" title="Delete Candidate">🗑️</button></form>`;
 
       const sentBadge = (c.status === 'Rejected' && c.rejection_sent)
         ? '<span class="badge-sent" title="Rejection email sent">✉</span>' : '';
@@ -315,26 +304,60 @@ block content
       if (hasDetails) {
         const matching = parsed ? (parsed.matching || []).map(m => `<span class="match-chip">${esc(m)}</span>`).join('') : '';
         const missing = parsed ? (parsed.missing || []).map(m => `<span class="miss-chip">${esc(m)}</span>`).join('') : '';
+
+        const cleanSummary = (c.video_summary || '').replace(/\s*Auto-screen (note|result):[^.]+\./g, '').trim();
+
+        const transcriptHtml = c.video_transcript
+          ? `<p style="margin-bottom:6px"><strong>What candidate said:</strong></p>
+             <p style="font-style:italic;color:var(--text-muted);background:rgba(255,255,255,0.03);border-left:3px solid var(--accent);padding:8px 12px;border-radius:4px;line-height:1.7">${esc(c.video_transcript)}</p>`
+          : '';
+
+        const scoresHtml = (c.english_score != null || c.confidence_score != null)
+          ? `<p style="margin-top:10px">
+               ${c.english_score != null ? `<strong>English Fluency:</strong> ${Number(c.english_score).toFixed(1)} / 10` : ''}
+               ${c.english_score != null && c.confidence_score != null ? ' &nbsp;·&nbsp; ' : ''}
+               ${c.confidence_score != null ? `<strong>Confidence:</strong> ${Number(c.confidence_score).toFixed(1)} / 10` : ''}
+             </p>`
+          : '';
+
+        const salaryHtml = (c.salary_expectation && c.salary_expectation !== 'Not mentioned')
+          ? `<p><strong>Salary Expectation:</strong> ${esc(c.salary_expectation)}</p>`
+          : '';
+
+        const videoSection = (c.video_summary || c.video_transcript)
+          ? `<h4>🎥 Video Analysis</h4>
+             ${transcriptHtml}
+             ${scoresHtml}
+             ${salaryHtml}
+             ${cleanSummary ? `<p style="margin-top:8px">${esc(cleanSummary)}</p>` : ''}`
+          : '';
+
+        const roleHtml = `
+          ${ROLE_REQUIRED_SKILLS ? `<p style="margin-top:8px"><strong>Required Skills:</strong> ${esc(ROLE_REQUIRED_SKILLS)}</p>` : ''}
+          ${ROLE_SALARY_RANGE ? `<p><strong>Role Salary Range:</strong> ${esc(ROLE_SALARY_RANGE)}</p>` : ''}`;
+
+        const resumeSection = parsed
+          ? `<h4 style="margin-top:12px">📄 Resume Analysis</h4>
+             <p>${esc(parsed.summary || '')}</p>
+             <h4 style="margin-top:8px">✓ Matching</h4><div>${matching || '—'}</div>
+             <h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>`
+          : '';
+
         summaryRow = `<tr class="summary-row" id="summary-${c.thread_id}" style="display:none">
-          <td colspan="11"><div class="summary-box">
-            ${c.video_summary ? `<h4>Video Analysis</h4><p>${esc(c.video_summary)}</p>` : '<h4>Video Analysis</h4><p>Summary not available yet.</p>'}
-            <p><strong>Salary Expectation:</strong> ${esc(c.salary_expectation || 'Not mentioned')}</p>
-            ${ROLE_REQUIRED_SKILLS ? `<p><strong>Required Skills:</strong> ${esc(ROLE_REQUIRED_SKILLS)}</p>` : ''}
-            ${ROLE_SALARY_RANGE ? `<p><strong>Role Salary Range:</strong> ${esc(ROLE_SALARY_RANGE)}</p>` : ''}
-            ${c.confidence_score != null ? `<p><strong>Confidence Score:</strong> ${Number(c.confidence_score).toFixed(1)}</p>` : ''}
-            ${parsed ? `<h4 style="margin-top:10px">Resume Summary</h4><p>${esc(parsed.summary || 'No resume summary available.')}</p><h4>✓ Matching</h4><div>${matching || '—'}</div><h4 style="margin-top:10px">✗ Missing</h4><div>${missing || '—'}</div>` : ''}
+          <td colspan="9"><div class="summary-box">
+            ${videoSection}
+            ${roleHtml}
+            ${resumeSection}
           </div></td></tr>`;
       }
 
       return `<tr>
         <td>${esc(c.email)}</td>
         <td><span class="${badgeCls}">${esc(displayStatus)}</span>${sentBadge}${detailsBtn}</td>
-        <td>${videoCell}</td>
         <td>${assignedBadge}</td>
         <td class="score">${score}</td>
-        <td class="score">${c.english_score != null ? Number(c.english_score).toFixed(1) : '—'}</td>
-        <td>${skills}</td>
-        <td>${esc(c.salary_expectation || '—')}</td>
+        <td>${esc(c.interviewer_name || '—')}</td>
+        <td>${c.interview_scheduled_at ? new Date(c.interview_scheduled_at).toLocaleString() : '—'}</td>
         <td>${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</td>
         <td class="actions-cell">${actions}</td>
       </tr>${summaryRow}`;

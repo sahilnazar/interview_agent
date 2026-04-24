@@ -20,11 +20,11 @@ export async function sendInterviewerOTP(interviewer) {
 
   await sendEmail(
     interviewer.email,
-    "Your Interview Assistant Login Code",
+    "Your TrenHire Login Code",
     `<div style="font-family:sans-serif;max-width:480px">
       <h2>Login OTP</h2>
       <p>Hi ${interviewer.name},</p>
-      <p>Your one-time login code for Interview Assistant is:</p>
+      <p>Your one-time login code for TrenHire is:</p>
       <div style="font-size:36px;font-weight:700;letter-spacing:10px;background:#0f0f1a;color:#4f6ef7;padding:24px;border-radius:8px;text-align:center;margin:20px 0">
         ${code}
       </div>

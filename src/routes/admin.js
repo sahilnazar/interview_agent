@@ -12,6 +12,7 @@ import { sendRejectionEmail } from "../services/email.js";
 import { restartEmailIngest } from "../services/email-ingest.js";
 import {
   sendBulkOutcomeEmails,
+  sendBulkOutcomeEmailsIfDue,
   getHrAssignmentRequests,
   getPendingHrRequestCount,
   getHrAssignmentRequest,
@@ -89,12 +90,12 @@ router.post("/hr-requests/:requestId/reject", requireAdmin, async (req, res, nex
 });
 
 // GET /admin/settings — show admin settings page
-router.get("/settings", requireAdmin, async (_req, res, next) => {
+router.get("/settings", requireAdmin, async (req, res, next) => {
   try {
     const settingsResult = await query("SELECT key, value FROM settings");
     const settings = {};
     for (const r of settingsResult.rows) settings[r.key] = r.value;
-    res.render("admin-settings", { settings });
+    res.render("admin-settings", { settings, bulkResult: req.query.bulkResult || null });
   } catch (err) {
     next(err);
   }
@@ -103,7 +104,7 @@ router.get("/settings", requireAdmin, async (_req, res, next) => {
 // POST /admin/settings — save global embedding settings
 router.post("/settings", requireAdmin, async (req, res, next) => {
   try {
-    const { embedding_provider, ollama_base_url, bulk_mail_enabled, bulk_mail_send_time } = req.body;
+    const { embedding_provider, ollama_base_url } = req.body;
     if (embedding_provider) {
       await query(
         "INSERT INTO settings (key, value) VALUES ('embedding_provider', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
@@ -116,6 +117,16 @@ router.post("/settings", requireAdmin, async (req, res, next) => {
         [ollama_base_url.trim() || "http://localhost:11434"]
       );
     }
+    res.redirect("/admin/settings");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/settings/bulk-mail — save bulk outcome email settings
+router.post("/settings/bulk-mail", requireAdmin, async (req, res, next) => {
+  try {
+    const { bulk_mail_enabled, bulk_mail_send_time } = req.body;
     await query(
       "INSERT INTO settings (key, value) VALUES ('bulk_mail_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
       [bulk_mail_enabled === 'on' ? 'true' : 'false']
@@ -127,6 +138,38 @@ router.post("/settings", requireAdmin, async (req, res, next) => {
       );
     }
     res.redirect("/admin/settings");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/settings/hr-notifications — save HR notification email list
+router.post("/settings/hr-notifications", requireAdmin, async (req, res, next) => {
+  try {
+    const emails = (req.body.hr_notification_emails || '').trim();
+    await query(
+      "INSERT INTO settings (key, value) VALUES ('hr_notification_emails', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [emails]
+    );
+    res.redirect("/admin/settings");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/settings/bulk-mail/trigger — manually fire bulk outcome emails now
+router.post("/settings/bulk-mail/trigger", requireAdmin, async (req, res, next) => {
+  try {
+    const result = await sendBulkOutcomeEmails(null, null);
+    if (result.passSent + result.failSent > 0) {
+      await query(
+        "INSERT INTO settings (key, value) VALUES ('bulk_mail_last_sent', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+        [new Date().toLocaleString()]
+      );
+    }
+    const msg = `Sent: ${result.passSent} selected, ${result.failSent} rejected (${result.passTotal + result.failTotal} total pending)`;
+    console.log(`[BulkMail] Manual trigger: ${msg}`);
+    res.redirect(`/admin/settings?bulkResult=${encodeURIComponent(msg)}`);
   } catch (err) {
     next(err);
   }
@@ -189,14 +232,28 @@ router.get("/interviews/:id", requireAdmin, async (req, res, next) => {
     if (!intRow.rows.length) return res.status(404).send("Interview not found");
 
     const candidates = await query(
-      `SELECT c.thread_id, c.email, c.status, c.resume_score, c.summary, c.english_score, c.confidence_score,
-              c.skills, c.salary_expectation, c.video_summary, c.rejection_sent, c.assignment_method,
+      `SELECT c.thread_id, c.email, c.status, c.resume_score, c.summary, c.confidence_score,
+              c.english_score, c.salary_expectation, c.video_transcript,
+              c.skills, c.video_summary, c.rejection_sent, c.assignment_method,
               c.match_confidence, c.created_at, c.video_path, c.final_result,
               EXISTS(
                 SELECT 1 FROM scheduled_interviews si
                 WHERE si.candidate_id = c.thread_id
                   AND si.status NOT IN ('cancelled', 'rejected_candidate', 'rejected_interviewer')
-              ) AS scheduled
+              ) AS scheduled,
+              (
+                SELECT i.name FROM scheduled_interviews si
+                JOIN interviewers i ON si.interviewer_id = i.id
+                WHERE si.candidate_id = c.thread_id
+                  AND si.status NOT IN ('cancelled', 'rejected_candidate', 'rejected_interviewer')
+                LIMIT 1
+              ) AS interviewer_name,
+              (
+                SELECT si.slot_start FROM scheduled_interviews si
+                WHERE si.candidate_id = c.thread_id
+                  AND si.status NOT IN ('cancelled', 'rejected_candidate', 'rejected_interviewer')
+                LIMIT 1
+              ) AS interview_scheduled_at
        FROM candidates c
        WHERE c.interview_id = $1
        ORDER BY c.created_at DESC`,
@@ -276,6 +333,14 @@ router.post("/interviews/:id/trigger", requireAdmin, resumeUpload.single("resume
 
     const threadId = uuidv4();
     const config = { configurable: { thread_id: threadId } };
+
+    // Save the uploaded buffer to processed/ so Download CV works later
+    const processedDir = path.join(process.cwd(), "cvs", "processed");
+    fs.mkdirSync(processedDir, { recursive: true });
+    const savedName = `${threadId}-${req.file.originalname}`;
+    const savedPath = path.join(processedDir, savedName);
+    fs.writeFileSync(savedPath, req.file.buffer);
+    console.log(`[Trigger] CV saved: ${savedPath} (${req.file.buffer.length} bytes)`);
 
     req.app.locals.compiledGraph
       .invoke({ candidateEmail: email, resumeBuffer: req.file.buffer, threadId, interviewId: id }, config)
@@ -434,6 +499,89 @@ router.post("/interviews/:id/delete-interview", requireAdmin, async (req, res, n
     await query("DELETE FROM interviews WHERE id = $1", [req.params.id]);
     res.redirect("/admin");
   } catch (err) {
+    next(err);
+  }
+});
+
+// GET /admin/interviews/:id/download-cv/:threadId — download candidate CV
+router.get("/interviews/:id/download-cv/:threadId", requireAdmin, async (req, res, next) => {
+  try {
+    const { id, threadId } = req.params;
+    
+    // Get candidate email
+    const candResult = await query(
+      "SELECT email FROM candidates WHERE thread_id = $1 AND interview_id = $2",
+      [threadId, id]
+    );
+    
+    if (!candResult.rows.length) {
+      console.error(`[Download CV] Candidate not found: threadId=${threadId}, interviewId=${id}`);
+      return res.status(404).json({ error: "Candidate not found in database" });
+    }
+    
+    const email = candResult.rows[0].email;
+    console.log(`[Download CV] Looking for CV of ${email} (threadId=${threadId})`);
+    
+    const VALID_DOC_EXTS = [".pdf", ".doc", ".docx"];
+    let filePath = null;
+
+    const processedDir = path.join(process.cwd(), "cvs", "processed");
+
+    // 1. Check cvs/processed/ for new-format files: <threadId>-<any_filename>.<ext>
+    //    This works regardless of what the original file was named.
+    if (fs.existsSync(processedDir)) {
+      const files = fs.readdirSync(processedDir);
+      const byThread = files.find((f) => f.startsWith(`${threadId}-`));
+      if (byThread) {
+        filePath = path.join(processedDir, byThread);
+        console.log(`[Download CV] Found by threadId in processed: ${filePath}`);
+      }
+    }
+
+    // 2. Check cvs/<interview_id>/ — file may still be there (not yet processed)
+    if (!filePath) {
+      const cvsDir = path.join(process.cwd(), "cvs", id);
+      for (const ext of VALID_DOC_EXTS) {
+        const file = path.join(cvsDir, email + ext);
+        if (fs.existsSync(file)) {
+          filePath = file;
+          console.log(`[Download CV] Found in interview cvs folder: ${file}`);
+          break;
+        }
+      }
+    }
+
+    // 3. Legacy fallback: processed files with old <timestamp>-<email>.<ext> format
+    if (!filePath && fs.existsSync(processedDir)) {
+      const files = fs.readdirSync(processedDir);
+      for (const file of files) {
+        const match = file.match(/^\d+-(.+)$/);
+        if (match) {
+          const originalFilename = match[1];
+          if (originalFilename === email || originalFilename.startsWith(email)) {
+            filePath = path.join(processedDir, file);
+            console.log(`[Download CV] Found by email (legacy) in processed: ${filePath}`);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!filePath) {
+      console.error(`[Download CV] CV file not found for: ${email} (threadId=${threadId})`);
+      return res.status(404).json({ error: `CV file not found for ${email}` });
+    }
+    
+    // Determine download name — path.extname on email-named files returns the TLD
+    // (.com, .net, etc.) which is not a valid document extension.
+    const detectedExt = path.extname(filePath);
+    const downloadExt = VALID_DOC_EXTS.includes(detectedExt) ? detectedExt : '.pdf';
+    const downloadName = `${email}-cv${downloadExt}`;
+    
+    // Send file for download
+    res.download(filePath, downloadName);
+  } catch (err) {
+    console.error(`[Download CV] Error:`, err);
     next(err);
   }
 });

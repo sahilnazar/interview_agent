@@ -81,7 +81,10 @@ export async function suggestInterviewersForCandidate(candidateId, interviewId, 
         interviewer_id: slot.interviewer_id,
         interviewer_name: slot.interviewer_name,
         interviewer_email: slot.interviewer_email,
+        skills: slot.interviewer_skills || "",
         interviewer_match_percent: slot.interviewer_match_percent || 0,
+        can_interview: slot.can_interview ?? true,
+        ai_match_reason: slot.ai_match_reason || null,
         slot_start: slot.slot_start,
         slot_end: slot.slot_end,
       });
@@ -265,6 +268,42 @@ function computeInterviewerMatchPercent(interviewerSkills = [], jobSkills = [], 
   return 0;
 }
 
+async function scoreInterviewersWithAI(interviewers, context) {
+  const model = getGroqModel();
+  const interviewerList = interviewers
+    .map(
+      (iv, i) =>
+        `${i + 1}. ID: ${iv.id}\n   Name: ${iv.name}\n   Department: ${iv.department || "N/A"}\n   Skills: ${iv.skills || "N/A"}`,
+    )
+    .join("\n\n");
+
+  const prompt = `You are an expert interviewer-matching agent. Score each interviewer's suitability to conduct an interview for the role below.
+
+Job Description: ${context.jd || "N/A"}
+Required Skills: ${context.required_skills || "N/A"}
+Candidate Skills: ${context.candidate_skills || "N/A"}
+Candidate Video Summary: ${context.video_summary || "N/A"}
+
+Interviewers:
+${interviewerList}
+
+For EVERY interviewer return:
+- score 0-100: domain fit (100 = perfect match)
+- can_interview true/false: has enough knowledge to conduct a meaningful technical interview
+- reason: one short sentence
+
+Return ONLY a valid JSON array (no markdown, no explanation):
+[{"interviewer_id":"<uuid>","score":<number>,"can_interview":<boolean>,"reason":"<string>"},...]`;
+
+  const res = await callWithRetry(() => model.invoke([new HumanMessage(prompt)]));
+  const raw = String(res.content);
+  const jsonMatch = raw.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) throw new Error("No JSON array in AI response");
+  const parsed = JSON.parse(jsonMatch[0]);
+  if (!Array.isArray(parsed) || !parsed.length) throw new Error("Empty AI result array");
+  return parsed;
+}
+
 // ─── Core scheduling ──────────────────────────────────────────────────────
 
 /**
@@ -274,7 +313,7 @@ function computeInterviewerMatchPercent(interviewerSkills = [], jobSkills = [], 
  */
 export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
   const contextResult = await query(
-    `SELECT c.skills AS candidate_skills, i.required_skills, i.jd
+    `SELECT c.skills AS candidate_skills, c.video_summary, i.required_skills, i.jd
      FROM candidates c
      JOIN interviews i ON i.id = c.interview_id
      WHERE c.thread_id = $1
@@ -305,7 +344,7 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
   let availableInterviewers = { rows: [] };
   if (assignedInterviewerIds.length > 0) {
     availableInterviewers = await query(
-      `SELECT DISTINCT i.id, i.name, i.email, i.skills
+      `SELECT DISTINCT i.id, i.name, i.email, i.skills, i.department
        FROM interviewers i
        JOIN interviewer_slots s ON s.interviewer_id = i.id
        WHERE i.id = ANY($1::uuid[])
@@ -317,7 +356,7 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
 
   if (!availableInterviewers.rows.length) {
     availableInterviewers = await query(
-      `SELECT DISTINCT i.id, i.name, i.email, i.skills
+      `SELECT DISTINCT i.id, i.name, i.email, i.skills, i.department
        FROM interviewers i
        JOIN interviewer_slots s ON s.interviewer_id = i.id
        WHERE s.status = 'available'
@@ -339,11 +378,41 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
     }),
   );
 
+  // AI scoring — overrides string-match scores when LLM is available
+  const aiResultMap = new Map();
+  try {
+    const aiInterviewers = availableInterviewers.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      skills: r.skills || "",
+      department: r.department || "",
+    }));
+    const candidateSkillsText = Array.isArray(context.candidate_skills)
+      ? context.candidate_skills.join(", ")
+      : (context.candidate_skills || "");
+    const aiContext = {
+      jd: context.jd || "",
+      required_skills: context.required_skills || "",
+      candidate_skills: candidateSkillsText,
+      video_summary: context.video_summary || "",
+    };
+    const aiResults = await scoreInterviewersWithAI(aiInterviewers, aiContext);
+    for (const result of aiResults) {
+      if (result.interviewer_id) {
+        aiResultMap.set(result.interviewer_id, result);
+        scoreByInterviewer.set(result.interviewer_id, result.score);
+      }
+    }
+    console.log(`[InterviewerMatch] AI scored ${aiResults.length} interviewers for candidate ${candidateId}`);
+  } catch (err) {
+    console.warn(`[InterviewerMatch] AI scoring failed, using string-match fallback: ${err.message}`);
+  }
+
   const interviewerIds = availableInterviewers.rows.map((r) => r.id);
 
   // Get available (not booked/blocked) future slots
   const slotsResult = await query(
-    `SELECT s.*, i.name AS interviewer_name, i.email AS interviewer_email
+    `SELECT s.*, i.name AS interviewer_name, i.email AS interviewer_email, i.skills AS interviewer_skills
      FROM interviewer_slots s
      JOIN interviewers i ON i.id = s.interviewer_id
      WHERE s.interviewer_id = ANY($1::uuid[])
@@ -365,9 +434,12 @@ export async function findAvailableSlots(interviewId, candidateId, limit = 5) {
   // If no first-priority slots are currently available, fall back to any available interviewer.
   const rankedSlots = slotsResult.rows.map((slot) => {
     const matchPercent = scoreByInterviewer.get(slot.interviewer_id) || 0;
+    const aiResult = aiResultMap.get(slot.interviewer_id);
     return {
       ...slot,
       interviewer_match_percent: matchPercent,
+      can_interview: aiResult ? aiResult.can_interview : matchPercent > 30,
+      ai_match_reason: aiResult?.reason || null,
       interviewer_priority: matchPercent > 50 ? 1 : 2,
     };
   });
@@ -564,15 +636,25 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
     [interviewId],
   );
   const interviewRequiredSkills = parseSkillList(interviewSkillsResult.rows[0]?.required_skills || "");
-  const hasAnyInterviewSkillOverlap = interviewRequiredSkills.length === 0
-    ? true
-    : suggestions.some((item) => {
-      const interviewerSkills = parseSkillList(item.skills || []);
-      return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
-    });
 
-  // For interviews with explicit required skills, do not auto-schedule to unrelated skill sets.
-  if (suggestions.length > 0 && interviewRequiredSkills.length > 0 && !hasAnyInterviewSkillOverlap) {
+  // AI-aware check: use can_interview from AI scoring; fall back to string overlap when AI wasn't used
+  const aiWasUsed = suggestions.some((s) => s.ai_match_reason !== null);
+  const hasAnyCanInterview = aiWasUsed
+    ? suggestions.some((s) => s.can_interview === true)
+    : interviewRequiredSkills.length === 0
+      ? true
+      : suggestions.some((item) => {
+        const interviewerSkills = parseSkillList(item.skills || []);
+        return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
+      });
+
+  // AI threshold gate: < 40 → HR review; 40+ → auto-assign
+  const AI_HR_THRESHOLD = 40;
+  const needsHrReview =
+    suggestions.length > 0 &&
+    (!hasAnyCanInterview || (aiWasUsed && topMatch < AI_HR_THRESHOLD));
+
+  if (needsHrReview) {
     const pendingRequest = await query(
       `SELECT id
        FROM interviewer_assignment_requests
@@ -585,37 +667,10 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
     );
 
     if (!pendingRequest.rows.length) {
-      const reason = "No interviewer with required interview-skill overlap is currently available — HR review required";
-      const requestId = await createInterviewerAssignmentRequest(
-        candidateId,
-        interviewId,
-        suggestions,
-        reason,
-      );
-      return { scheduled: false, reason: "hr_review_required", requestId };
-    }
-
-    return {
-      scheduled: false,
-      reason: "hr_review_pending",
-      requestId: pendingRequest.rows[0].id,
-    };
-  }
-
-  if (suggestions.length > 0 && topMatch < INTERVIEWER_MATCH_THRESHOLD && !hasAnyInterviewSkillOverlap) {
-    const pendingRequest = await query(
-      `SELECT id
-       FROM interviewer_assignment_requests
-       WHERE candidate_id = $1
-         AND interview_id = $2
-         AND status = 'pending'
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [candidateId, interviewId],
-    );
-
-    if (!pendingRequest.rows.length) {
-      const reason = `Low-skill match (${topMatch.toFixed(0)}%) with no interview-skill overlap — HR review required`;
+      const topReason = suggestions[0]?.ai_match_reason || null;
+      const reason = aiWasUsed
+        ? `AI match score ${topMatch.toFixed(0)}% — ${topReason || "no suitable interviewer found"} — HR review required`
+        : `No interviewer with required skill overlap is currently available — HR review required`;
       const requestId = await createInterviewerAssignmentRequest(
         candidateId,
         interviewId,
@@ -634,19 +689,21 @@ export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
 
   let slots = await findAvailableSlots(interviewId, candidateId, 3);
 
-  // If required skills are defined, prefer slots from interviewers who overlap with those skills.
-  if (interviewRequiredSkills.length > 0 && suggestions.length > 0) {
-    const overlapInterviewerIds = new Set(
+  // Prefer slots from interviewers flagged as suitable (AI can_interview or string overlap)
+  if (suggestions.length > 0) {
+    const qualifiedIds = new Set(
       suggestions
-        .filter((item) => {
-          const interviewerSkills = parseSkillList(item.skills || []);
-          return interviewerSkills.some((skill) => interviewRequiredSkills.includes(skill));
-        })
+        .filter((item) =>
+          aiWasUsed
+            ? item.can_interview === true
+            : interviewRequiredSkills.length === 0 ||
+              parseSkillList(item.skills || []).some((skill) => interviewRequiredSkills.includes(skill)),
+        )
         .map((item) => item.interviewer_id),
     );
 
-    if (overlapInterviewerIds.size > 0) {
-      const filtered = slots.filter((slot) => overlapInterviewerIds.has(slot.interviewer_id));
+    if (qualifiedIds.size > 0) {
+      const filtered = slots.filter((slot) => qualifiedIds.has(slot.interviewer_id));
       if (filtered.length > 0) slots = filtered;
     }
   }
@@ -764,33 +821,66 @@ function formatDateKey(date) {
   return date.toISOString().slice(0, 10);
 }
 
+const BUFFER_MINUTES = 30;
+
 function shouldRunBulkMail(settings) {
-  if (settings.bulk_mail_enabled !== 'true') return false;
+  if (settings.bulk_mail_enabled !== 'true') {
+    console.log('[BulkMail] Skipped: bulk_mail_enabled is not true');
+    return false;
+  }
   const timeValue = settings.bulk_mail_send_time || '18:00';
   const [hour, minute] = timeValue.split(':').map((value) => parseInt(value, 10));
-  if (Number.isNaN(hour) || Number.isNaN(minute)) return false;
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    console.log('[BulkMail] Skipped: invalid send time:', timeValue);
+    return false;
+  }
 
   const now = new Date();
-  const todayTarget = new Date(now);
-  todayTarget.setHours(hour, minute, 0, 0);
+  const windowStart = new Date(now);
+  windowStart.setHours(hour, minute, 0, 0);
+  const windowEnd = new Date(windowStart);
+  windowEnd.setMinutes(windowEnd.getMinutes() + BUFFER_MINUTES);
 
-  if (now < todayTarget) return false;
-  const lastSent = settings.bulk_mail_last_sent || '';
-  return lastSent !== formatDateKey(todayTarget);
+  if (now < windowStart) {
+    console.log(`[BulkMail] Skipped: not yet time (now=${now.toLocaleTimeString()}, window=${windowStart.toLocaleTimeString()}–${windowEnd.toLocaleTimeString()})`);
+    return false;
+  }
+  if (now > windowEnd) {
+    console.log(`[BulkMail] Skipped: outside send window (now=${now.toLocaleTimeString()}, closed at ${windowEnd.toLocaleTimeString()})`);
+    return false;
+  }
+  return true;
 }
 
-export async function sendBulkOutcomeEmails(interviewId = null) {
+function buildCutoff(settings) {
+  const timeValue = settings.bulk_mail_send_time || '18:00';
+  const [hour, minute] = timeValue.split(':').map((v) => parseInt(v, 10));
+  const cutoff = new Date();
+  cutoff.setHours(hour, minute + BUFFER_MINUTES, 0, 0);
+  return cutoff;
+}
+
+export async function sendBulkOutcomeEmails(interviewId = null, cutoff = null) {
   const passParams = [];
   const failParams = [];
-  let passQuery = "SELECT thread_id, email FROM candidates WHERE final_result = 'pass' AND selected_email_sent = FALSE";
-  let failQuery = "SELECT thread_id, email FROM candidates WHERE final_result = 'fail' AND not_selected_email_sent = FALSE";
+  const conditions = [];
 
   if (interviewId) {
-    passQuery += " AND interview_id = $1";
-    failQuery += " AND interview_id = $1";
     passParams.push(interviewId);
     failParams.push(interviewId);
+    conditions.push(`interview_id = $${passParams.length}`);
   }
+
+  if (cutoff) {
+    passParams.push(cutoff);
+    failParams.push(cutoff);
+    // NULL final_result_at = legacy row with no timestamp → always include
+    conditions.push(`(final_result_at IS NULL OR final_result_at <= $${passParams.length})`);
+  }
+
+  const where = conditions.length ? " AND " + conditions.join(" AND ") : "";
+  const passQuery = `SELECT thread_id, email FROM candidates WHERE final_result = 'pass' AND selected_email_sent = FALSE${where}`;
+  const failQuery = `SELECT thread_id, email FROM candidates WHERE final_result = 'fail' AND not_selected_email_sent = FALSE${where}`;
 
   const passResult = await query(passQuery, passParams);
   const failResult = await query(failQuery, failParams);
@@ -827,14 +917,22 @@ export async function sendBulkOutcomeEmailsIfDue() {
     return { ran: false };
   }
 
-  const result = await sendBulkOutcomeEmails();
-  const todayKey = formatDateKey(new Date());
-  await query(
-    "INSERT INTO settings (key, value) VALUES ('bulk_mail_last_sent', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-    [todayKey]
-  );
+  // Send all pending candidates whose result was finalized within the window.
+  // Each candidate's selected_email_sent / not_selected_email_sent flag ensures no double-send.
+  const cutoff = buildCutoff(settings);
+  const result = await sendBulkOutcomeEmails(null, cutoff);
 
-  console.log(`[BulkMail] Sent pass=${result.passSent}/${result.passTotal}, fail=${result.failSent}/${result.failTotal} at ${todayKey}`);
+  // Update last_sent only when at least one email went out (for display purposes only).
+  if (result.passSent + result.failSent > 0) {
+    await query(
+      "INSERT INTO settings (key, value) VALUES ('bulk_mail_last_sent', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [new Date().toLocaleString()]
+    );
+    console.log(`[BulkMail] Sent pass=${result.passSent}/${result.passTotal}, fail=${result.failSent}/${result.failTotal}`);
+  } else {
+    console.log(`[BulkMail] Window open, no pending emails (pass=${result.passTotal}, fail=${result.failTotal})`);
+  }
+
   return { ran: true, ...result };
 }
 
@@ -859,35 +957,70 @@ export function startBulkOutcomeEmailWorker(intervalMs = 60000) {
 // ─── Email helpers ────────────────────────────────────────────────────────
 
 export async function sendCandidateSlotEmail(email, candidateId, slots) {
-  const slotOptions = slots
-    .map(
-      (s, i) => `
+  const slotRows = slots.map((s) => `
     <tr>
-      <td style="padding:12px 16px;border-bottom:1px solid #1e293b;font-size:14px">
-        ${fmt(s.slot_start)} – ${fmt(s.slot_end)}
+      <td style="padding:14px 20px;border-bottom:1px solid #f1f5f9">
+        <span style="font-size:15px;font-weight:600;color:#1e293b">📅 ${fmt(s.slot_start)}</span>
+        <span style="color:#64748b;font-size:13px"> – ${fmt(s.slot_end)}</span>
       </td>
-      <td style="padding:12px 16px;border-bottom:1px solid #1e293b;text-align:right">
+      <td style="padding:14px 20px;border-bottom:1px solid #f1f5f9;text-align:right">
         <a href="${BASE_URL}/candidate/schedule/accept/${s.candidateToken}"
-           style="background:#4f6ef7;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:13px">
-          Confirm slot
+           style="background:#6366f1;color:#fff;padding:9px 20px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;display:inline-block">
+          Select Slot →
         </a>
       </td>
-    </tr>`,
-    )
-    .join("");
+    </tr>`).join("");
 
   await sendEmail(
     email,
-    "Interview Scheduling — Your Interview Slot",
-    `<div style="font-family:sans-serif;max-width:640px">
-      <h2>Your interview slot is ready</h2>
-      <p>Great news! We've reserved the next available slot for your interview:</p>
-      <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#0f0f1a;border-radius:8px;overflow:hidden">
-        ${slotOptions}
-      </table>
-      <p style="color:#94a3b8;font-size:12px">
-        Click the button above to confirm this slot. If you have any issues, please contact us.
-      </p>
+    "🎯 Action Required — Choose Your Interview Slot",
+    `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:24px">
+      <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:32px 32px 28px">
+          <div style="font-size:13px;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">InterviewAssist</div>
+          <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700">You're Shortlisted! 🎉</h1>
+          <p style="margin:10px 0 0;color:rgba(255,255,255,0.85);font-size:15px">Please select a time slot for your interview.</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px">
+          <p style="margin:0 0 20px;color:#475569;font-size:15px;line-height:1.6">
+            Hi there,<br><br>
+            Congratulations — your application has been shortlisted and we'd love to meet you!
+            Please choose one of the available interview slots below.
+          </p>
+
+          <div style="background:#f8fafc;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;margin-bottom:24px">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#f1f5f9">
+                  <th style="padding:12px 20px;text-align:left;font-size:11px;color:#94a3b8;letter-spacing:1.5px;text-transform:uppercase;font-weight:600">Available Slots</th>
+                  <th style="padding:12px 20px;text-align:right;font-size:11px;color:#94a3b8;letter-spacing:1.5px;text-transform:uppercase;font-weight:600">Action</th>
+                </tr>
+              </thead>
+              <tbody>${slotRows}</tbody>
+            </table>
+          </div>
+
+          <div style="background:#eff6ff;border-left:4px solid #6366f1;padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:20px">
+            <p style="margin:0;font-size:13px;color:#1e40af;line-height:1.6">
+              <strong>Tips for a great interview:</strong><br>
+              • Find a quiet, well-lit space<br>
+              • Test your camera and microphone beforehand<br>
+              • Join the call 2–3 minutes early
+            </p>
+          </div>
+
+          <p style="margin:0;font-size:13px;color:#94a3b8">If you have any questions, reply to this email and we'll be happy to help.</p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">Powered by InterviewAssist · This is an automated message</p>
+        </div>
+      </div>
     </div>`,
   );
 }
@@ -909,29 +1042,65 @@ export async function sendInterviewerConfirmationRequest(scheduledId) {
 
   await sendEmail(
     si.iemail,
-    "Interview Scheduled — Please Confirm Your Availability",
-    `<div style="font-family:sans-serif;max-width:600px">
-      <h2>Interview Confirmation Request</h2>
-      <p>Hi ${si.iname},</p>
-      <p>A candidate has selected the following interview slot:</p>
-      <table style="border-collapse:collapse;margin:16px 0">
-        <tr><td style="padding:6px 16px 6px 0;color:#888">Candidate:</td><td><strong>${si.cemail}</strong></td></tr>
-        <tr><td style="padding:6px 16px 6px 0;color:#888">When:</td><td><strong>${fmt(si.slot_start)} – ${fmt(si.slot_end)}</strong></td></tr>
-      </table>
-      <p>Please confirm or decline:</p>
-      <div style="display:flex;gap:12px;margin:20px 0">
-        <a href="${confirmUrl}?decision=confirm"
-           style="background:#22c55e;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none">
-          ✓ Confirm
-        </a>
-        <a href="${confirmUrl}?decision=reject"
-           style="background:#ef4444;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-left:12px">
-          ✗ Decline
-        </a>
+    "⏰ Action Required — Confirm Your Interview Availability",
+    `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:24px">
+      <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:32px 32px 28px;border-bottom:3px solid #0ea5e9">
+          <div style="font-size:13px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">InterviewAssist · Interviewer Portal</div>
+          <h1 style="margin:0;color:#f8fafc;font-size:22px;font-weight:700">New Interview Assignment</h1>
+          <p style="margin:10px 0 0;color:#94a3b8;font-size:14px">A candidate has confirmed a slot — your response is needed.</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px">
+          <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6">Hi <strong>${si.iname}</strong>,<br><br>
+          A candidate has selected an interview slot with you. Please confirm or decline your availability at your earliest convenience.</p>
+
+          <!-- Detail card -->
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin-bottom:28px">
+            <table style="width:100%;border-collapse:collapse">
+              <tr>
+                <td style="padding:8px 0;font-size:13px;color:#64748b;width:120px">👤 Candidate</td>
+                <td style="padding:8px 0;font-size:14px;font-weight:600;color:#1e293b">${si.cemail}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;font-size:13px;color:#64748b">📅 Date &amp; Time</td>
+                <td style="padding:8px 0;font-size:14px;font-weight:600;color:#1e293b">${fmt(si.slot_start)} – ${fmt(si.slot_end)}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- CTA buttons -->
+          <p style="margin:0 0 16px;font-size:14px;font-weight:600;color:#1e293b">Are you available for this slot?</p>
+          <table style="border-collapse:collapse">
+            <tr>
+              <td style="padding-right:12px">
+                <a href="${confirmUrl}?decision=confirm"
+                   style="background:#16a34a;color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block">
+                  ✓ &nbsp;Yes, Confirm
+                </a>
+              </td>
+              <td>
+                <a href="${rejectUrl}"
+                   style="background:#fff;color:#dc2626;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;border:2px solid #dc2626">
+                  ✗ &nbsp;Decline
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:24px 0 0;font-size:12px;color:#94a3b8">
+            If the buttons don't work, visit: <a href="${confirmUrl}" style="color:#0ea5e9">${confirmUrl}</a>
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">InterviewAssist · Interviewer Notification · Please do not forward this email</p>
+        </div>
       </div>
-      <p style="color:#94a3b8;font-size:12px">
-        Or visit: <a href="${confirmUrl}" style="color:#4f6ef7">${confirmUrl}</a>
-      </p>
     </div>`,
   );
 }
@@ -948,35 +1117,134 @@ export async function sendScheduleConfirmedEmails(scheduledId) {
   if (!result.rows.length) return;
   const si = result.rows[0];
 
-  const body = (name) => `
-    <div style="font-family:sans-serif;max-width:600px">
-      <h2>Interview Confirmed ✓</h2>
-      <p>Hi ${name},</p>
-      <p>Your interview has been confirmed.</p>
-      <table style="border-collapse:collapse;margin:16px 0">
-        <tr><td style="padding:6px 16px 6px 0;color:#888">When:</td>
-            <td><strong>${fmt(si.slot_start)} – ${fmt(si.slot_end)}</strong></td></tr>
-        <tr><td style="padding:6px 16px 6px 0;color:#888">Interviewer:</td>
-            <td><strong>${si.iname}</strong></td></tr>
-        <tr><td style="padding:6px 16px 6px 0;color:#888">Candidate:</td>
-            <td><strong>${si.cemail}</strong></td></tr>
-        ${
-          si.meet_link
-            ? `<tr><td style="padding:6px 16px 6px 0;color:#888">Meet Link:</td>
-            <td><a href="${si.meet_link}" style="color:#4f6ef7">${si.meet_link}</a></td></tr>`
-            : ""
-        }
-      </table>
-      <p style="margin-top:8px">Please ensure you attend the interview on time.</p>
-      <p style="color:#94a3b8;font-size:12px">Please add this to your calendar.</p>
+  const meetRow = si.meet_link
+    ? `<tr>
+        <td style="padding:8px 0;font-size:13px;color:#64748b">🔗 Meeting Link</td>
+        <td style="padding:8px 0">
+          <a href="${si.meet_link}" style="color:#6366f1;font-weight:600;font-size:14px">${si.meet_link}</a>
+        </td>
+      </tr>`
+    : "";
+
+  const meetBtn = si.meet_link
+    ? `<div style="margin-top:28px;text-align:center">
+        <a href="${si.meet_link}" style="background:#6366f1;color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:700;display:inline-block">
+          🎥 &nbsp;Join Meeting
+        </a>
+       </div>`
+    : "";
+
+  // ── Candidate confirmed email ──────────────────────────────────────────────
+  const candidateBody = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:24px">
+      <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:36px 32px;text-align:center">
+          <div style="font-size:40px;margin-bottom:12px">🎉</div>
+          <h1 style="margin:0;color:#fff;font-size:26px;font-weight:800">Your Interview is Confirmed!</h1>
+          <p style="margin:10px 0 0;color:rgba(255,255,255,0.85);font-size:15px">Everything is set — we're looking forward to meeting you.</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px">
+          <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6">
+            Hi there,<br><br>
+            Your interview has been successfully scheduled. Here are the details:
+          </p>
+
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin-bottom:24px">
+            <table style="width:100%;border-collapse:collapse">
+              <tr>
+                <td style="padding:8px 0;font-size:13px;color:#64748b;width:140px">📅 Date &amp; Time</td>
+                <td style="padding:8px 0;font-size:14px;font-weight:700;color:#1e293b">${fmt(si.slot_start)} – ${fmt(si.slot_end)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;font-size:13px;color:#64748b">👤 Interviewer</td>
+                <td style="padding:8px 0;font-size:14px;font-weight:600;color:#1e293b">${si.iname}</td>
+              </tr>
+              ${meetRow}
+            </table>
+          </div>
+
+          ${meetBtn}
+
+          <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 18px;border-radius:0 8px 8px 0;margin-top:24px">
+            <p style="margin:0;font-size:13px;color:#15803d;line-height:1.7">
+              <strong>How to prepare:</strong><br>
+              • Join the meeting 2–3 minutes early<br>
+              • Test your audio and camera beforehand<br>
+              • Have a copy of your resume handy<br>
+              • Be ready to discuss your projects and experience
+            </p>
+          </div>
+
+          <p style="margin:24px 0 0;font-size:13px;color:#94a3b8">Good luck! If you need to reschedule, please contact us as soon as possible.</p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">Powered by InterviewAssist · This is an automated message</p>
+        </div>
+      </div>
     </div>`;
 
-  await sendEmail(si.cemail, "Your Interview is Confirmed!", body("there"));
-  await sendEmail(
-    si.iemail,
-    "Interview Confirmed — Calendar Update",
-    body(si.iname),
-  );
+  // ── Interviewer confirmed email ────────────────────────────────────────────
+  const interviewerBody = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:24px">
+      <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:32px 32px 28px;border-bottom:3px solid #16a34a">
+          <div style="font-size:13px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">InterviewAssist · Interviewer Portal</div>
+          <h1 style="margin:0;color:#f8fafc;font-size:22px;font-weight:700">✓ Interview Confirmed</h1>
+          <p style="margin:10px 0 0;color:#94a3b8;font-size:14px">This session is now locked in your schedule.</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px">
+          <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6">
+            Hi <strong>${si.iname}</strong>,<br><br>
+            The following interview has been confirmed. Please add it to your calendar.
+          </p>
+
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin-bottom:24px">
+            <table style="width:100%;border-collapse:collapse">
+              <tr>
+                <td style="padding:8px 0;font-size:13px;color:#64748b;width:140px">📅 Date &amp; Time</td>
+                <td style="padding:8px 0;font-size:14px;font-weight:700;color:#1e293b">${fmt(si.slot_start)} – ${fmt(si.slot_end)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;font-size:13px;color:#64748b">👤 Candidate</td>
+                <td style="padding:8px 0;font-size:14px;font-weight:600;color:#1e293b">${si.cemail}</td>
+              </tr>
+              ${meetRow}
+            </table>
+          </div>
+
+          ${meetBtn}
+
+          <div style="background:#eff6ff;border-left:4px solid #0ea5e9;padding:14px 18px;border-radius:0 8px 8px 0;margin-top:24px">
+            <p style="margin:0;font-size:13px;color:#0369a1;line-height:1.7">
+              <strong>Before the interview:</strong><br>
+              • Review the candidate's resume and video screening notes in the admin panel<br>
+              • Note any skills gaps or points to probe<br>
+              • Ensure you join on time — the candidate will be waiting
+            </p>
+          </div>
+
+          <p style="margin:24px 0 0;font-size:13px;color:#94a3b8">If you have any issues, please contact the hiring team immediately.</p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">InterviewAssist · Interviewer Notification · Do not forward this email</p>
+        </div>
+      </div>
+    </div>`;
+
+  await sendEmail(si.cemail, "🎉 Your Interview is Confirmed!", candidateBody);
+  await sendEmail(si.iemail, "✓ Interview Confirmed — Calendar Update", interviewerBody);
 
   // Mark candidate as scheduled
   await query(

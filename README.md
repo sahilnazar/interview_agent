@@ -1,4 +1,4 @@
-# Interview Assistant
+# TrenHire
 
 Production-ready AI-powered interview screening pipeline built with **LangGraph.js**, **Google Gemini**, **Node.js**, and **Pug**.
 

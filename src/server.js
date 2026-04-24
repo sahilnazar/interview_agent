@@ -46,13 +46,13 @@ async function main() {
   startBulkOutcomeEmailWorker();
 
   app.listen(PORT, HOST, () => {
-    console.log(`Interview Assistant running → http://localhost:${PORT}/admin`);
-    console.log(`Interview Assistant host binding → ${HOST}:${PORT}`);
+    console.log(`TrenHire running → http://localhost:${PORT}/admin`);
+    console.log(`TrenHire host binding → ${HOST}:${PORT}`);
 
     if (HOST === "0.0.0.0") {
       const lanUrls = getLanUrls(PORT);
       for (const url of lanUrls) {
-        console.log(`Interview Assistant LAN URL → ${url}`);
+        console.log(`TrenHire LAN URL → ${url}`);
       }
     }
   });

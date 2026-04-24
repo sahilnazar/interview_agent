@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { PORT } from "../config/env.js";
+import { query } from "../config/db.js";
 
 let _transporter;
 
@@ -25,12 +26,16 @@ export async function sendEmail(to, subject, html) {
 }
 
 export async function sendHrApprovalRequestNotification(interviewId, candidateEmail, requestId, suggestions, reason) {
-  const recipients = (process.env.HR_NOTIFICATION_EMAILS || "")
+  const settingRow = await query(
+    "SELECT value FROM settings WHERE key = 'hr_notification_emails' LIMIT 1"
+  );
+  const emailsSetting = settingRow.rows[0]?.value || process.env.HR_NOTIFICATION_EMAILS || "";
+  const recipients = emailsSetting
     .split(",")
     .map((address) => address.trim())
     .filter(Boolean);
   if (!recipients.length) {
-    console.warn("HR_NOTIFICATION_EMAILS not set — skipping HR approval notification");
+    console.warn("hr_notification_emails not configured in Settings — skipping HR approval notification");
     return;
   }
 

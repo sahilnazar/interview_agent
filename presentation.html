@@ -336,14 +336,22 @@
     }
     .stat-box .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
-    /* ── Animations ───────────────────────────── */
-    @keyframes float {
-      0%,100% { transform: translateY(0); }
-      50%      { transform: translateY(-8px); }
-    }
-    @keyframes pulse-ring {
-      0%   { box-shadow: 0 0 0 0 rgba(0,212,255,.3); }
-      100% { box-shadow: 0 0 0 24px rgba(0,212,255,0); }
+    /* ── Print styles ────────────────────────── */
+    @media print {
+      .nav { display: none !important; }
+      .slides { position: static !important; height: auto !important; }
+      .slide {
+        position: static !important;
+        opacity: 1 !important;
+        transform: none !important;
+        page-break-after: always;
+        height: auto !important;
+        min-height: 100vh;
+        display: flex !important;
+        pointer-events: all !important;
+      }
+      .slide:last-child { page-break-after: avoid; }
+      body::before { display: none !important; }
     }
   </style>
 </head>
@@ -358,10 +366,10 @@
     <h1 class="h1">Interview<span style="color:var(--accent)">Assist</span></h1>
     <p class="tagline">
       A fully autonomous end-to-end hiring pipeline —<br>
-      from resume drop to scheduled interview, powered by AI.
+      from resume drop to scheduled interview, powered by <span class="accent">agentic AI</span>.
     </p>
     <div class="badges">
-      <span class="pill pill-blue">🤖 LangGraph Agents</span>
+      <span class="pill pill-blue">🤖 MCP Tool Calling</span>
       <span class="pill pill-green">🎥 Gemini Vision</span>
       <span class="pill pill-purple">⚡ Groq LLM</span>
       <span class="pill pill-orange">🗄️ pgvector RAG</span>
@@ -396,8 +404,8 @@
 
   <!-- ── SLIDE 3: Feature Pipeline ──────────────────── -->
   <div class="slide" id="slide-3">
-    <div class="label">End-to-End Autonomous Pipeline</div>
-    <h2 class="h2"><span class="gradient-text">Every step</span> — automated</h2>
+    <div class="label">Agentic AI Pipeline with MCP Tool Calling</div>
+    <h2 class="h2"><span class="gradient-text">LLMs autonomously</span> call tools</h2>
     <div class="pipeline">
       <div class="pipe-step">
         <div class="icon">📥</div>
@@ -407,7 +415,7 @@
       <div class="pipe-step">
         <div class="icon">🧠</div>
         <div class="step-label">AI Screening</div>
-        <div class="step-sub">LangGraph + Groq scores resume vs JD with RAG</div>
+        <div class="step-sub">LLM calls analyze_resume tool via MCP</div>
       </div>
       <div class="pipe-step">
         <div class="icon">🎥</div>
@@ -417,12 +425,12 @@
       <div class="pipe-step">
         <div class="icon">📅</div>
         <div class="step-label">Smart Scheduling</div>
-        <div class="step-sub">Skill-matched interviewers, auto slot booking</div>
+        <div class="step-sub">LLM calls schedule_candidate tool autonomously</div>
       </div>
       <div class="pipe-step">
         <div class="icon">✅</div>
         <div class="step-label">Outcome</div>
-        <div class="step-sub">Bulk select / reject emails with full audit trail</div>
+        <div class="step-sub">LLM calls send_invite tool with full audit trail</div>
       </div>
     </div>
     <div class="features-grid">
@@ -443,8 +451,8 @@
       </div>
       <div class="feat-card">
         <div class="icon">🤖</div>
-        <h4>MCP Integration</h4>
-        <p>Model Context Protocol tools extend the AI agent with external capability calls</p>
+        <h4>MCP Tool Protocol</h4>
+        <p>LLMs autonomously call 9 specialized tools: analyze_resume, send_invite, schedule_candidate, etc.</p>
       </div>
     </div>
   </div>
@@ -488,22 +496,22 @@
 
   <!-- ── SLIDE 5: Background Agents ────────────────── -->
   <div class="slide" id="slide-5">
-    <div class="label">Autonomous Agents &amp; Workers</div>
-    <h2 class="h2"><span class="gradient-text">8 Specialized</span> background agents</h2>
+    <div class="label">Agentic AI with MCP Tool Calling</div>
+    <h2 class="h2"><span class="gradient-text">LLMs autonomously</span> execute tasks</h2>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;width:100%;max-width:1100px;">
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
           <span style="font-size:18px">📁</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">CV Watcher</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Monitors cvs/ directory for new resume files, triggers LangGraph pipeline automatically</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Monitors cvs/ directory, triggers LangGraph pipeline with MCP tool calls</p>
       </div>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
           <span style="font-size:18px">📧</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Email Ingest Agent</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Polls IMAP inbox for resume attachments, extracts &amp; saves to cvs/auto/ folder</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Polls IMAP inbox, extracts resumes, calls analyze_resume MCP tool</p>
       </div>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
@@ -517,51 +525,51 @@
           <span style="font-size:18px">🧠</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Resume Scoring Agent</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Scores resume using RAG + pgvector embeddings against job description</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">LLM calls analyze_resume_only MCP tool with RAG + pgvector embeddings</p>
       </div>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
           <span style="font-size:18px">🎯</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Interview Matcher</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Stage A: Vector similarity search. Stage B: Groq LLM confirmation for final pick</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">LLM calls find_best_interviewer MCP tool for skill-matched pairing</p>
       </div>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
           <span style="font-size:18px">📅</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Auto-Scheduler Agent</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Assigns candidates to skill-matched interviewers, routes low-matches to HR approval</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">LLM calls schedule_candidate MCP tool, routes low-matches to HR approval</p>
       </div>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
           <span style="font-size:18px">💌</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Email Sending Agent</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Sends invitations, rejections, scheduling confirmations &amp; HR notifications</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">LLM calls send_invite MCP tool for invitations, rejections & confirmations</p>
       </div>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
           <span style="font-size:18px">📬</span>
           <span style="font-family:'Syne',sans-serif;font-weight:700;color:#fff">Bulk Outcome Worker</span>
         </div>
-        <p style="font-size:12px;color:var(--muted);line-height:1.6">Sends bulk pass/fail notification emails on schedule (daily at configured time)</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">LLM calls bulk_email_outcomes MCP tool daily at configured time</p>
       </div>
     </div>
   </div>
 
   <!-- ── SLIDE 6: Closing ────────────────────────────── -->
   <div class="slide" id="slide-6">
-    <div class="label">Impact &amp; Summary</div>
-    <h2 class="h2">One platform.<br/><span class="gradient-text">Zero manual bottlenecks.</span></h2>
+    <div class="label">Agentic AI Impact &amp; Summary</div>
+    <h2 class="h2">One platform.<br/><span class="gradient-text">LLMs autonomously call tools.</span></h2>
     <div class="stat-row">
       <div class="stat-box">
         <div class="num">100%</div>
         <div class="lbl">Automated Resume Screening</div>
       </div>
       <div class="stat-box">
-        <div class="num">5+</div>
-        <div class="lbl">AI Models Orchestrated</div>
+        <div class="num">9</div>
+        <div class="lbl">MCP Tools Available</div>
       </div>
       <div class="stat-box">
         <div class="num">0</div>
@@ -573,14 +581,14 @@
       </div>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-      <span class="pill pill-blue">LangGraph Agents</span>
+      <span class="pill pill-blue">MCP Tool Calling</span>
       <span class="pill pill-green">Gemini Vision</span>
       <span class="pill pill-purple">Groq LLM</span>
       <span class="pill pill-orange">pgvector RAG</span>
       <span class="pill pill-blue">IMAP Auto-Ingest</span>
       <span class="pill pill-green">Smart Scheduling</span>
       <span class="pill pill-purple">HR Approval Panel</span>
-      <span class="pill pill-orange">MCP Tool Protocol</span>
+      <span class="pill pill-orange">Agentic AI</span>
     </div>
     <p class="sub" style="text-align:center;max-width:580px">
       InterviewAssist brings together the best of modern AI to eliminate hiring inefficiencies — so teams can focus on what matters: <span class="accent">finding the right people</span>.
