@@ -183,6 +183,20 @@ export async function initDB() {
     ON CONFLICT (key) DO NOTHING
   `);
 
+  // Calendar MCP integration defaults
+  const calendarDefaults = [
+    ['calendar_provider', 'none'],
+    ['calendar_mcp_url', ''],
+    ['calendar_mcp_key', ''],
+    ['calendar_mcp_tool', 'create_event'],
+  ];
+  for (const [key, value] of calendarDefaults) {
+    await query(
+      "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING",
+      [key, value]
+    );
+  }
+
   // IMAP email ingestion defaults
   const imapDefaults = [
     ['imap_enabled', 'false'],

@@ -10,6 +10,7 @@ import { reselectCandidateById, rejectCandidateById } from "../graph/actions.js"
 import { storeJDChunks, getEmbedStatus } from "../services/embeddings.js";
 import { sendRejectionEmail } from "../services/email.js";
 import { restartEmailIngest } from "../services/email-ingest.js";
+import { testCalendarConnection } from "../services/calendar-mcp.js";
 import {
   sendBulkOutcomeEmails,
   sendBulkOutcomeEmailsIfDue,
@@ -202,6 +203,52 @@ router.post("/settings/imap", requireAdmin, async (req, res, next) => {
     res.redirect("/admin/settings");
   } catch (err) {
     next(err);
+  }
+});
+
+// POST /admin/settings/calendar — save calendar MCP integration settings
+router.post("/settings/calendar", requireAdmin, async (req, res, next) => {
+  try {
+    const { calendar_provider, calendar_mcp_url, calendar_mcp_key, calendar_mcp_tool } = req.body;
+    const fields = [
+      ["calendar_provider", calendar_provider || "none"],
+      ["calendar_mcp_url", (calendar_mcp_url || "").trim()],
+      ["calendar_mcp_key", (calendar_mcp_key || "").trim()],
+      ["calendar_mcp_tool", (calendar_mcp_tool || "create_event").trim() || "create_event"],
+    ];
+    for (const [key, value] of fields) {
+      await query(
+        "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+        [key, value]
+      );
+    }
+    res.redirect("/admin/settings");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/settings/calendar/test — test the configured MCP connection (returns JSON)
+router.post("/settings/calendar/test", requireAdmin, async (req, res) => {
+  const { calendar_mcp_url, calendar_mcp_key } = req.body;
+  const url = (calendar_mcp_url || "").trim();
+  const key = (calendar_mcp_key || "").trim();
+
+  if (!url || !key) {
+    return res.json({ ok: false, error: "URL and API key are required" });
+  }
+
+  try {
+    new URL(url); // validate URL format
+  } catch {
+    return res.json({ ok: false, error: "Invalid URL format" });
+  }
+
+  try {
+    const result = await testCalendarConnection(url, key);
+    res.json(result);
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
   }
 });
 

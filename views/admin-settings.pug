@@ -99,3 +99,110 @@ block content
       if settings.imap_last_poll
         p(style="color:var(--text-muted);margin-top:8px;font-size:13px") Last polled: #{new Date(settings.imap_last_poll).toLocaleString()}
       button.btn(type="submit" style="margin-top:12px") Save IMAP Settings
+
+  .card
+    h2 Calendar Integration
+    p(style="color:var(--text-muted);font-size:13px;margin-bottom:16px")
+      | Connect any calendar provider (Google Calendar, Yahoo, Outlook, or custom) via its MCP server URL and API key.
+      | When configured, confirmed interviews automatically create a real calendar event with a meeting link.
+    form(action="/admin/settings/calendar" method="POST" id="calendar-form")
+      .input-row
+        div(style="flex:1")
+          label CALENDAR PROVIDER
+          select(name="calendar_provider" id="cal-provider" style="width:100%")
+            option(value="none" selected=(settings.calendar_provider === 'none' || !settings.calendar_provider)) None (disabled)
+            option(value="google" selected=(settings.calendar_provider === 'google')) Google Calendar
+            option(value="yahoo" selected=(settings.calendar_provider === 'yahoo')) Yahoo Calendar
+            option(value="outlook" selected=(settings.calendar_provider === 'outlook')) Outlook / Microsoft 365
+            option(value="custom" selected=(settings.calendar_provider === 'custom')) Custom MCP Server
+      .input-row(id="cal-fields" style="margin-top:8px")
+        div(style="flex:2")
+          label MCP SERVER URL
+          input(type="text" name="calendar_mcp_url" id="cal-url" value=(settings.calendar_mcp_url || '') placeholder="https://calendarmcp.googleapis.com/mcp/v1" style="margin-bottom:0;width:100%")
+        div(style="flex:1;margin-left:16px")
+          label API KEY / BEARER TOKEN
+          input(type="password" name="calendar_mcp_key" id="cal-key" value=(settings.calendar_mcp_key || '') placeholder="Bearer token or API key" style="margin-bottom:0;width:100%")
+      .input-row(style="margin-top:8px" id="cal-tool-row")
+        div
+          label CREATE-EVENT TOOL NAME
+          input(type="text" name="calendar_mcp_tool" id="cal-tool" value=(settings.calendar_mcp_tool || 'create_event') placeholder="create_event" style="width:200px;margin-bottom:0")
+          p(style="color:var(--text-muted);font-size:12px;margin:4px 0 0") Default is create_event. Use the Test button to discover available tools.
+      p(style="margin-top:10px;font-size:13px")
+        | Status:&nbsp;
+        span(id="cal-status-text" style=`color:${(settings.calendar_provider && settings.calendar_provider !== 'none' && settings.calendar_mcp_url && settings.calendar_mcp_key) ? 'var(--success)' : 'var(--danger)'}`)
+          = (settings.calendar_provider && settings.calendar_provider !== 'none' && settings.calendar_mcp_url && settings.calendar_mcp_key) ? 'Configured' : 'Incomplete — URL or key missing'
+      .input-row(style="margin-top:12px;align-items:center;justify-content:space-between")
+        button.btn(type="submit") Save Calendar Settings
+        button.btn(type="button" id="cal-test-btn" style="background:var(--accent)") Test Connection
+      p(id="cal-test-result" style="margin-top:8px;font-size:13px;display:none")
+    script.
+      (function () {
+        const providerUrls = {
+          google:  'https://calendarmcp.googleapis.com/mcp/v1',
+          yahoo:   'https://calendar.yahoo.com/mcp/v1',
+          outlook: 'https://graph.microsoft.com/mcp/v1',
+          custom:  '',
+          none:    '',
+        };
+        const sel      = document.getElementById('cal-provider');
+        const fields   = document.getElementById('cal-fields');
+        const toolRow  = document.getElementById('cal-tool-row');
+        const urlInput = document.getElementById('cal-url');
+        const keyInput = document.getElementById('cal-key');
+        const statusEl = document.getElementById('cal-status-text');
+        const testBtn  = document.getElementById('cal-test-btn');
+        const testRes  = document.getElementById('cal-test-result');
+
+        function updateVisibility() {
+          const show = sel.value !== 'none';
+          fields.style.display  = show ? '' : 'none';
+          toolRow.style.display = show ? '' : 'none';
+        }
+
+        sel.addEventListener('change', function () {
+          updateVisibility();
+          const suggested = providerUrls[sel.value] || '';
+          if (suggested && !urlInput.value) urlInput.value = suggested;
+          refreshStatus();
+        });
+
+        function refreshStatus() {
+          const ok = sel.value !== 'none' && urlInput.value.trim() && keyInput.value.trim();
+          statusEl.textContent = ok ? 'Configured' : 'Incomplete — URL or key missing';
+          statusEl.style.color = ok ? 'var(--success)' : 'var(--danger)';
+        }
+
+        urlInput.addEventListener('input', refreshStatus);
+        keyInput.addEventListener('input', refreshStatus);
+
+        testBtn.addEventListener('click', async function () {
+          const url = urlInput.value.trim();
+          const key = keyInput.value.trim();
+          testRes.style.display = 'block';
+          testRes.style.color   = 'var(--text-muted)';
+          testRes.textContent   = 'Testing connection…';
+          testBtn.disabled      = true;
+          try {
+            const resp = await fetch('/admin/settings/calendar/test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ calendar_mcp_url: url, calendar_mcp_key: key }),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+              testRes.style.color = 'var(--success)';
+              testRes.textContent = 'Connected! Available tools: ' + (data.tools || []).join(', ');
+            } else {
+              testRes.style.color = 'var(--danger)';
+              testRes.textContent = 'Failed: ' + (data.error || 'unknown error');
+            }
+          } catch (e) {
+            testRes.style.color = 'var(--danger)';
+            testRes.textContent = 'Request error: ' + e.message;
+          } finally {
+            testBtn.disabled = false;
+          }
+        });
+
+        updateVisibility();
+      })();

@@ -18,6 +18,7 @@ import { sendEmail, sendSelectionEmail, sendNotSelectedEmail, sendHrApprovalRequ
 import { callWithRetry, getGroqModel } from "../graph/helpers.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
+import { createCalendarEventForScheduledInterview } from "./calendar-mcp.js";
 import { isMCPAvailable, scheduleCandidateViaMCP, autoAssignAndConfirmViaMCP } from "./mcp.js";
 
 const BASE_URL = process.env.APP_URL || `http://localhost:${PORT}`;
@@ -1250,6 +1251,11 @@ export async function sendScheduleConfirmedEmails(scheduledId) {
   await query(
     "UPDATE candidates SET status = 'Scheduled', scheduled_interview_id = $1 WHERE thread_id = $2",
     [scheduledId, si.candidate_id],
+  );
+
+  // Create calendar event via configured MCP provider (no-op when not configured)
+  createCalendarEventForScheduledInterview(scheduledId).catch((err) =>
+    console.warn(`[CalendarMCP] Event creation failed for ${scheduledId}: ${err.message}`)
   );
 }
 
