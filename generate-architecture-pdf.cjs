@@ -1,785 +1,408 @@
 const puppeteer = require("puppeteer");
 const path = require("path");
 
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1587" height="1123" viewBox="0 0 1580 1060"
+     font-family="Arial,Helvetica,sans-serif">
+<defs>
+  <marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0,10 3.5,0 7" fill="#475569"/>
+  </marker>
+  <marker id="ahr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0,10 3.5,0 7" fill="#ef4444"/>
+  </marker>
+  <marker id="ahg" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0,10 3.5,0 7" fill="#10b981"/>
+  </marker>
+</defs>
+
+<!-- ═══ TITLE BAR ═══ -->
+<rect x="0" y="0" width="1580" height="58" fill="#0f172a"/>
+<text x="790" y="20" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="700" letter-spacing="3">SYSTEM ARCHITECTURE · TRENHIRE INTERVIEW ASSISTANT</text>
+<text x="790" y="44" text-anchor="middle" fill="white" font-size="20" font-weight="800">CV Upload → Resume Analysis → MCP Agents → Calendar Event</text>
+
+<!-- ═══ ZONE BACKGROUNDS ═══ -->
+<!-- Entry Points Zone -->
+<rect x="10" y="62" width="222" height="988" rx="10" fill="#f0f4ff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="7,4"/>
+<text x="121" y="83" text-anchor="middle" fill="#6366f1" font-size="10" font-weight="800" letter-spacing="2">entry points</text>
+
+<!-- Backend Zone -->
+<rect x="244" y="62" width="522" height="988" rx="10" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5" stroke-dasharray="7,4"/>
+<text x="505" y="83" text-anchor="middle" fill="#10b981" font-size="10" font-weight="800" letter-spacing="2">backend</text>
+
+<!-- MCP Servers Zone -->
+<rect x="778" y="62" width="278" height="988" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="7,4"/>
+<text x="917" y="83" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="800" letter-spacing="2">MCP servers</text>
+
+<!-- AI / External Zone -->
+<rect x="1068" y="62" width="504" height="988" rx="10" fill="#fdf2f8" stroke="#ec4899" stroke-width="1.5" stroke-dasharray="7,4"/>
+<text x="1320" y="83" text-anchor="middle" fill="#ec4899" font-size="10" font-weight="800" letter-spacing="2">AI services &amp; external</text>
+
+<!-- LangGraph Sub-Zone inside Backend -->
+<rect x="452" y="100" width="308" height="584" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3"/>
+<text x="606" y="120" text-anchor="middle" fill="#4f46e5" font-size="9" font-weight="800" letter-spacing="1.5">🔄  LANGGRAPH WORKFLOW ENGINE</text>
+
+<!-- Data Layer Sub-Zone inside Backend -->
+<rect x="254" y="792" width="500" height="180" rx="8" fill="#ecfeff" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="5,3"/>
+<text x="504" y="810" text-anchor="middle" fill="#0284c7" font-size="9" font-weight="800" letter-spacing="1.5">🗄  DATA LAYER</text>
+
+<!-- ═══ ENTRY COMPONENTS ═══ -->
+<!-- 1. CV Web Upload -->
+<rect x="18" y="110" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="121" y="135" text-anchor="middle" font-size="18">📄</text>
+<text x="121" y="155" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">CV Web Upload</text>
+<text x="121" y="170" text-anchor="middle" fill="#64748b" font-size="9">Drag-drop PDF/DOCX portal</text>
+
+<!-- 2. Email Inbox -->
+<rect x="18" y="230" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="121" y="255" text-anchor="middle" font-size="18">📧</text>
+<text x="121" y="275" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Email Inbox (IMAP)</text>
+<text x="121" y="290" text-anchor="middle" fill="#64748b" font-size="9">Auto-ingests resume attachments</text>
+
+<!-- 3. Admin Dashboard -->
+<rect x="18" y="350" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="121" y="375" text-anchor="middle" font-size="18">👑</text>
+<text x="121" y="395" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Admin Dashboard</text>
+<text x="121" y="410" text-anchor="middle" fill="#64748b" font-size="9">Manual trigger / settings</text>
+
+<!-- 4. Candidate Video -->
+<rect x="18" y="470" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="121" y="495" text-anchor="middle" font-size="18">🎥</text>
+<text x="121" y="515" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Candidate Video Upload</text>
+<text x="121" y="530" text-anchor="middle" fill="#64748b" font-size="9">Async video submission</text>
+
+<!-- 5. Interviewer Portal -->
+<rect x="18" y="590" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="121" y="615" text-anchor="middle" font-size="18">🧑‍💼</text>
+<text x="121" y="635" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Interviewer Portal</text>
+<text x="121" y="650" text-anchor="middle" fill="#64748b" font-size="9">Calendar &amp; slot management</text>
+
+<!-- ═══ APP LAYER COMPONENTS ═══ -->
+<!-- Express.js Server -->
+<rect x="254" y="110" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
+<text x="347" y="135" text-anchor="middle" font-size="18">⚙️</text>
+<text x="347" y="155" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Express.js Server</text>
+<text x="347" y="170" text-anchor="middle" fill="#64748b" font-size="9">Routes / Auth / Sessions</text>
+
+<!-- Email Ingest Worker -->
+<rect x="254" y="230" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
+<text x="347" y="255" text-anchor="middle" font-size="18">📥</text>
+<text x="347" y="275" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Email Ingest Worker</text>
+<text x="347" y="290" text-anchor="middle" fill="#64748b" font-size="9">imapflow · pdf-parse · mammoth</text>
+
+<!-- File Watcher -->
+<rect x="254" y="350" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
+<text x="347" y="375" text-anchor="middle" font-size="18">👁️</text>
+<text x="347" y="395" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">File Watcher</text>
+<text x="347" y="410" text-anchor="middle" fill="#64748b" font-size="9">chokidar · cvs/ folder</text>
+
+<!-- Video Upload Handler -->
+<rect x="254" y="470" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
+<text x="347" y="495" text-anchor="middle" font-size="18">🎬</text>
+<text x="347" y="515" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Video Upload Handler</text>
+<text x="347" y="530" text-anchor="middle" fill="#64748b" font-size="9">multer · /upload/:threadId</text>
+
+<!-- Background Workers -->
+<rect x="254" y="702" width="498" height="68" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+<text x="503" y="726" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="700" letter-spacing="1">⏱  BACKGROUND WORKERS</text>
+<text x="503" y="744" text-anchor="middle" fill="#e2e8f0" font-size="10">auto-schedule · email-ingest poller · video reminder · no-show monitor · bulk outcome emailer</text>
+<text x="503" y="759" text-anchor="middle" fill="#64748b" font-size="9">scheduler.js · email-ingest.js  (setInterval loops)</text>
+
+<!-- PostgreSQL Box -->
+<rect x="264" y="820" width="480" height="136" rx="8" fill="white" stroke="#67e8f9" stroke-width="1.5"/>
+<text x="504" y="848" text-anchor="middle" font-size="20">🗄️</text>
+<text x="504" y="870" text-anchor="middle" fill="#1e293b" font-size="12" font-weight="700">PostgreSQL + pgvector</text>
+<text x="504" y="888" text-anchor="middle" fill="#64748b" font-size="9">candidates · interviews · scheduled_interviews · interviewers · admins · sessions · jd_chunks</text>
+<text x="504" y="904" text-anchor="middle" fill="#0284c7" font-size="9" font-weight="600">vector(768) embeddings · cosine similarity (&lt;=&gt;) · connect-pg-simple checkpointer</text>
+<text x="504" y="920" text-anchor="middle" fill="#64748b" font-size="9">PostgresSaver (LangGraph checkpoint) · pg pool (8 connections)</text>
+<text x="504" y="938" text-anchor="middle" fill="#64748b" font-size="9">docker: pgvector/pgvector:pg16 · persistent volume</text>
+
+<!-- ═══ LANGGRAPH NODES ═══ -->
+<!-- Node 1: check_domain_duplicate -->
+<rect x="462" y="136" width="286" height="68" rx="7" fill="white" stroke="#818cf8" stroke-width="1.5"/>
+<text x="605" y="158" text-anchor="middle" font-size="14">🔍</text>
+<text x="605" y="176" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">check_domain_and_duplicate</text>
+<text x="605" y="191" text-anchor="middle" fill="#64748b" font-size="9">SHA256 hash dedup · domain regex filter · INSERT candidate</text>
+
+<!-- Arrow: checkDomain → analyzeResume -->
+<line x1="605" y1="204" x2="605" y2="248" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<!-- Node 2: analyze_resume -->
+<rect x="462" y="248" width="286" height="68" rx="7" fill="white" stroke="#818cf8" stroke-width="1.5"/>
+<text x="605" y="270" text-anchor="middle" font-size="14">📊</text>
+<text x="605" y="288" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">analyze_resume</text>
+<text x="605" y="303" text-anchor="middle" fill="#64748b" font-size="9">extract text · RAG embed · pgvector search · LLM score</text>
+
+<!-- Arrow: analyzeResume → threshold gate -->
+<line x1="605" y1="316" x2="605" y2="352" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<!-- Threshold Gate Diamond -->
+<polygon points="605,352 643,380 605,408 567,380" fill="white" stroke="#f59e0b" stroke-width="2"/>
+<text x="605" y="377" text-anchor="middle" fill="#92400e" font-size="9" font-weight="800">score ≥ threshold?</text>
+<text x="605" y="392" text-anchor="middle" fill="#92400e" font-size="8">pass_threshold (0–100)</text>
+
+<!-- Arrow gate→sendInvite (YES/left) -->
+<path d="M 573,380 L 530,380 L 530,432" fill="none" stroke="#10b981" stroke-width="1.5" marker-end="url(#ahg)"/>
+<text x="548" y="374" text-anchor="middle" fill="#065f46" font-size="8" font-weight="700">YES ✓</text>
+
+<!-- Arrow gate→rejectCandidate (NO/right) -->
+<path d="M 637,380 L 678,380 L 678,432" fill="none" stroke="#ef4444" stroke-width="1.5" marker-end="url(#ahr)"/>
+<text x="660" y="374" text-anchor="middle" fill="#991b1b" font-size="8" font-weight="700">NO ✗</text>
+
+<!-- Node 3: send_invite -->
+<rect x="462" y="432" width="136" height="68" rx="7" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5"/>
+<text x="530" y="454" text-anchor="middle" font-size="14">✉️</text>
+<text x="530" y="472" text-anchor="middle" fill="#065f46" font-size="10" font-weight="700">send_invite</text>
+<text x="530" y="487" text-anchor="middle" fill="#064e3b" font-size="8">video link email</text>
+
+<!-- Node 4: reject_candidate -->
+<rect x="610" y="432" width="136" height="68" rx="7" fill="#fff1f2" stroke="#ef4444" stroke-width="1.5"/>
+<text x="678" y="454" text-anchor="middle" font-size="14">❌</text>
+<text x="678" y="472" text-anchor="middle" fill="#991b1b" font-size="10" font-weight="700">reject_candidate</text>
+<text x="678" y="487" text-anchor="middle" fill="#7f1d1d" font-size="8">rejection email</text>
+
+<!-- ═══ MCP #1 SUB-ZONE ═══ -->
+<rect x="786" y="100" width="264" height="368" rx="8" fill="#fff8e1" stroke="#f59e0b" stroke-width="1.5"/>
+<rect x="792" y="112" width="252" height="56" rx="6" fill="#f59e0b" fill-opacity="0.15" stroke="#f59e0b" stroke-width="1"/>
+<text x="918" y="132" text-anchor="middle" fill="#92400e" font-size="8" font-weight="800" letter-spacing="1">🔧  MCP SERVER #1 — LOCAL NODE TOOLS</text>
+<text x="918" y="148" text-anchor="middle" fill="#78350f" font-size="9" font-weight="700">Transport: stdio (child_process spawn)</text>
+<text x="918" y="162" text-anchor="middle" fill="#64748b" font-size="8">mcp-node-tools-server.js · StdioClientTransport</text>
+
+<!-- MCP#1 Tool Rows -->
+<rect x="792" y="178" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
+<text x="805" y="196" fill="#1e293b" font-size="10" font-weight="700">🔬  analyze_resume_only</text>
+<text x="805" y="212" fill="#64748b" font-size="8">PDF extract · embed · pgvector search · Groq score</text>
+
+<rect x="792" y="230" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
+<text x="805" y="248" fill="#1e293b" font-size="10" font-weight="700">📨  send_invite</text>
+<text x="805" y="264" fill="#64748b" font-size="8">Nodemailer SMTP · video upload link</text>
+
+<rect x="792" y="282" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
+<text x="805" y="300" fill="#1e293b" font-size="10" font-weight="700">📅  schedule_candidate</text>
+<text x="805" y="316" fill="#64748b" font-size="8">slot finder · Groq-ranked options · email candidate</text>
+
+<rect x="792" y="334" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
+<text x="805" y="352" fill="#1e293b" font-size="10" font-weight="700">✅  auto_assign_and_confirm</text>
+<text x="805" y="368" fill="#64748b" font-size="8">pgvector match · Groq rank · HR gate if &lt;40%</text>
+
+<rect x="792" y="386" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
+<text x="805" y="404" fill="#1e293b" font-size="10" font-weight="700">👥  HR Assignment Tools</text>
+<text x="805" y="420" fill="#64748b" font-size="8">list · approve · reject hr_assignment_requests</text>
+
+<!-- ═══ MCP #2 SUB-ZONE ═══ -->
+<rect x="786" y="488" width="264" height="162" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5"/>
+<rect x="792" y="500" width="252" height="56" rx="6" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="1"/>
+<text x="918" y="520" text-anchor="middle" fill="#065f46" font-size="8" font-weight="800" letter-spacing="1">🗓️  MCP SERVER #2 — CALENDAR</text>
+<text x="918" y="536" text-anchor="middle" fill="#047857" font-size="9" font-weight="700">Transport: StreamableHTTP (HTTPS)</text>
+<text x="918" y="550" text-anchor="middle" fill="#64748b" font-size="8">calendar-mcp.js · Bearer token auth · per-event connect</text>
+
+<rect x="792" y="564" width="252" height="44" rx="5" fill="white" stroke="#6ee7b7" stroke-width="1"/>
+<text x="805" y="582" fill="#1e293b" font-size="10" font-weight="700">🔵  create_event</text>
+<text x="805" y="598" fill="#64748b" font-size="8">summary · start/end · attendees · meet_link</text>
+
+<!-- ═══ GMAIL SMTP BOX (in MCP zone) ═══ -->
+<rect x="786" y="668" width="264" height="72" rx="8" fill="#fff1f2" stroke="#fca5a5" stroke-width="1.5"/>
+<text x="918" y="692" text-anchor="middle" font-size="18">📬</text>
+<text x="918" y="712" text-anchor="middle" fill="#9f1239" font-size="11" font-weight="700">Gmail SMTP (Nodemailer)</text>
+<text x="918" y="727" text-anchor="middle" fill="#be123c" font-size="8">invite · reject · confirm · reminder emails</text>
+
+<!-- ═══ AI SERVICE COMPONENTS ═══ -->
+<!-- Groq LLM -->
+<rect x="1078" y="110" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
+<text x="1184" y="135" text-anchor="middle" font-size="18">⚡</text>
+<text x="1184" y="155" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Groq LLM</text>
+<text x="1184" y="170" text-anchor="middle" fill="#64748b" font-size="9">llama-3.3-70b · resume scoring · IR matching</text>
+
+<!-- Ollama Embeddings -->
+<rect x="1078" y="230" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
+<text x="1184" y="255" text-anchor="middle" font-size="18">🦙</text>
+<text x="1184" y="275" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Ollama Embeddings</text>
+<text x="1184" y="290" text-anchor="middle" fill="#64748b" font-size="9">nomic-embed-text · 768-dim · localhost:11434</text>
+
+<!-- Groq Whisper -->
+<rect x="1078" y="350" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
+<text x="1184" y="375" text-anchor="middle" font-size="18">🎤</text>
+<text x="1184" y="395" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Groq Whisper</text>
+<text x="1184" y="410" text-anchor="middle" fill="#64748b" font-size="9">whisper-large-v3 · audio → transcript</text>
+
+<!-- Gemini 2.5 Flash -->
+<rect x="1078" y="470" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
+<text x="1184" y="495" text-anchor="middle" font-size="18">🎬</text>
+<text x="1184" y="515" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Gemini 2.5 Flash</text>
+<text x="1184" y="530" text-anchor="middle" fill="#64748b" font-size="9">File API · englishScore · confidence · skills[]</text>
+
+<!-- Google Calendar MCP -->
+<rect x="1078" y="622" width="212" height="72" rx="8" fill="white" stroke="#86efac" stroke-width="1.5"/>
+<text x="1184" y="647" text-anchor="middle" font-size="18">🔵</text>
+<text x="1184" y="667" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Google Calendar MCP</text>
+<text x="1184" y="682" text-anchor="middle" fill="#64748b" font-size="9">change URL in admin → zero code change</text>
+
+<!-- Yahoo Calendar MCP -->
+<rect x="1322" y="622" width="218" height="72" rx="8" fill="white" stroke="#86efac" stroke-width="1.5"/>
+<text x="1431" y="647" text-anchor="middle" font-size="18">🟣</text>
+<text x="1431" y="667" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Yahoo Calendar MCP</text>
+<text x="1431" y="682" text-anchor="middle" fill="#64748b" font-size="9">or any MCP-compliant calendar</text>
+
+
+<!-- ═══════════════════════════════════════════════
+     ARROWS + PROTOCOL LABELS + STEP CIRCLES
+═══════════════════════════════════════════════ -->
+
+<!-- ① CV Web Upload → Express.js  (POST /upload) -->
+<path d="M 224,146 L 254,146" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="192" y="100" width="100" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
+<text x="242" y="112" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">POST /upload</text>
+<circle cx="224" cy="146" r="9" fill="#ea580c"/>
+<text x="224" y="150" text-anchor="middle" fill="white" font-size="9" font-weight="800">1</text>
+
+<!-- ② Email IMAP → Email Ingest (IMAP FETCH) -->
+<path d="M 224,266 L 254,266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="192" y="250" width="90" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
+<text x="237" y="262" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">IMAP FETCH</text>
+<circle cx="224" cy="266" r="9" fill="#ea580c"/>
+<text x="224" y="270" text-anchor="middle" fill="white" font-size="9" font-weight="800">2</text>
+
+<!-- ③ Admin → Express.js (bent up, JSON POST) -->
+<path d="M 224,386 L 238,386 L 238,146 L 254,146" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah)"/>
+<rect x="182" y="268" width="112" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
+<text x="238" y="280" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">JSON POST /admin/trigger</text>
+<circle cx="224" cy="386" r="9" fill="#ea580c"/>
+<text x="224" y="390" text-anchor="middle" fill="white" font-size="9" font-weight="800">3</text>
+
+<!-- ④ Candidate Video → Video Handler (multipart form-data) -->
+<path d="M 224,506 L 254,506" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="178" y="490" width="108" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
+<text x="232" y="502" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">POST multipart/form-data</text>
+<circle cx="224" cy="506" r="9" fill="#ea580c"/>
+<text x="224" y="510" text-anchor="middle" fill="white" font-size="9" font-weight="800">4</text>
+
+<!-- Express.js → LangGraph (short connector) -->
+<path d="M 440,150 L 452,165" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah)"/>
+<!-- Email Ingest → LangGraph (short connector) -->
+<path d="M 440,270 L 452,282" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah)"/>
+<!-- File Watcher → LangGraph (short connector) -->
+<path d="M 440,390 L 452,350" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah)"/>
+
+<!-- ⑤ analyze_resume → MCP #1 analyze_resume_only  (JSON-RPC stdio) -->
+<path d="M 748,282 L 770,282 L 770,200 L 792,200" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="730" y="226" width="100" height="16" rx="3" fill="white" stroke="#f59e0b" stroke-width="0.8"/>
+<text x="780" y="238" text-anchor="middle" fill="#92400e" font-size="8" font-weight="700">JSON-RPC stdio</text>
+<circle cx="759" cy="282" r="9" fill="#ea580c"/>
+<text x="759" y="286" text-anchor="middle" fill="white" font-size="9" font-weight="800">5</text>
+
+<!-- ⑥ MCP #1 → Groq LLM (HTTPS API) -->
+<path d="M 1044,200 L 1060,200 L 1060,146 L 1078,146" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="1014" y="158" width="82" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
+<text x="1055" y="170" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">HTTPS API</text>
+<circle cx="1044" cy="200" r="9" fill="#ea580c"/>
+<text x="1044" y="204" text-anchor="middle" fill="white" font-size="9" font-weight="800">6</text>
+
+<!-- ⑦ MCP #1 → Ollama (REST POST /api/embeddings) -->
+<path d="M 1044,252 L 1060,252 L 1060,266 L 1078,266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="998" y="232" width="148" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
+<text x="1072" y="244" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">REST POST /api/embeddings</text>
+<circle cx="1044" cy="252" r="9" fill="#ea580c"/>
+<text x="1044" y="256" text-anchor="middle" fill="white" font-size="9" font-weight="800">7</text>
+
+<!-- ⑧ LangGraph nodes → PostgreSQL (SQL INSERT/SELECT) -->
+<path d="M 748,282 L 770,282 L 770,778 L 504,778 L 504,820" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah)"/>
+<rect x="590" y="762" width="112" height="16" rx="3" fill="white" stroke="#0ea5e9" stroke-width="0.8"/>
+<text x="646" y="774" text-anchor="middle" fill="#0284c7" font-size="8" font-weight="600">SQL INSERT / SELECT</text>
+<circle cx="770" cy="530" r="9" fill="#ea580c"/>
+<text x="770" y="534" text-anchor="middle" fill="white" font-size="9" font-weight="800">8</text>
+
+<!-- ⑨ MCP #1 pgvector → PostgreSQL (cosine search) -->
+<path d="M 918,468 L 918,784 L 520,784 L 520,820" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah)"/>
+<rect x="652" y="768" width="130" height="16" rx="3" fill="white" stroke="#0ea5e9" stroke-width="0.8"/>
+<text x="717" y="780" text-anchor="middle" fill="#0284c7" font-size="8" font-weight="600">pgvector cosine search (&lt;=&gt;)</text>
+<circle cx="918" cy="620" r="9" fill="#ea580c"/>
+<text x="918" y="624" text-anchor="middle" fill="white" font-size="9" font-weight="800">9</text>
+
+<!-- ⑩ sendInvite → MCP #1 send_invite  (JSON-RPC stdio) -->
+<path d="M 598,466 L 598,510 L 770,510 L 770,252 L 792,252" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="656" y="494" width="100" height="16" rx="3" fill="white" stroke="#f59e0b" stroke-width="0.8"/>
+<text x="706" y="506" text-anchor="middle" fill="#92400e" font-size="8" font-weight="700">JSON-RPC stdio</text>
+<circle cx="635" cy="510" r="9" fill="#ea580c"/>
+<text x="635" y="514" text-anchor="middle" fill="white" font-size="9" font-weight="800">10</text>
+
+<!-- ⑪ MCP #1 send_invite → Gmail SMTP (in-process / SMTP) -->
+<path d="M 792,252 L 782,252 L 782,704 L 786,704" fill="none" stroke="#ef4444" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="726" y="474" width="118" height="16" rx="3" fill="white" stroke="#ef4444" stroke-width="0.8"/>
+<text x="785" y="486" text-anchor="middle" fill="#b91c1c" font-size="8" font-weight="600">SMTP (nodemailer)</text>
+<circle cx="782" cy="474" r="9" fill="#ea580c"/>
+<text x="782" y="478" text-anchor="middle" fill="white" font-size="9" font-weight="800">11</text>
+
+<!-- ⑫ Video Handler → Groq Whisper (audio transcription) -->
+<path d="M 440,510 L 756,510 L 756,930 L 1064,930 L 1064,386 L 1078,386" fill="none" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="836" y="918" width="138" height="16" rx="3" fill="white" stroke="#8b5cf6" stroke-width="0.8"/>
+<text x="905" y="930" text-anchor="middle" fill="#7c3aed" font-size="8" font-weight="600">Whisper API (audio → text)</text>
+<circle cx="756" cy="710" r="9" fill="#ea580c"/>
+<text x="756" y="714" text-anchor="middle" fill="white" font-size="9" font-weight="800">12</text>
+
+<!-- ⑬ Video Handler → Gemini 2.5 Flash (video analysis) -->
+<path d="M 440,530 L 758,530 L 758,948 L 1066,948 L 1066,506 L 1078,506" fill="none" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="836" y="936" width="132" height="16" rx="3" fill="white" stroke="#8b5cf6" stroke-width="0.8"/>
+<text x="902" y="948" text-anchor="middle" fill="#7c3aed" font-size="8" font-weight="600">Gemini File API (video)</text>
+<circle cx="758" cy="740" r="9" fill="#ea580c"/>
+<text x="758" y="744" text-anchor="middle" fill="white" font-size="9" font-weight="800">13</text>
+
+<!-- ⑭ Workers → MCP #2 Calendar  (StreamableHTTP) -->
+<path d="M 754,724 L 770,724 L 770,586 L 792,586" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="720" y="644" width="128" height="16" rx="3" fill="white" stroke="#10b981" stroke-width="0.8"/>
+<text x="784" y="656" text-anchor="middle" fill="#065f46" font-size="8" font-weight="700">StreamableHTTP (HTTPS)</text>
+<circle cx="762" cy="644" r="9" fill="#ea580c"/>
+<text x="762" y="648" text-anchor="middle" fill="white" font-size="9" font-weight="800">14</text>
+
+<!-- ⑮ MCP #2 → Google Calendar (MCP create_event) -->
+<path d="M 1044,586 L 1060,586 L 1060,658 L 1078,658" fill="none" stroke="#10b981" stroke-width="1.5" marker-end="url(#ahg)"/>
+<rect x="1008" y="604" width="106" height="16" rx="3" fill="white" stroke="#10b981" stroke-width="0.8"/>
+<text x="1061" y="616" text-anchor="middle" fill="#065f46" font-size="8" font-weight="700">MCP create_event</text>
+<circle cx="1044" cy="586" r="9" fill="#ea580c"/>
+<text x="1044" y="590" text-anchor="middle" fill="white" font-size="9" font-weight="800">15</text>
+
+<!-- MCP #2 → Yahoo Calendar (swap URL only) -->
+<path d="M 1044,604 L 1300,604 L 1300,658 L 1322,658" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ahg)"/>
+<rect x="1130" y="588" width="106" height="16" rx="3" fill="white" stroke="#10b981" stroke-width="0.8"/>
+<text x="1183" y="600" text-anchor="middle" fill="#065f46" font-size="8" font-weight="600">swap URL → zero code change</text>
+
+<!-- ═══ LEGEND ═══ -->
+<rect x="18" y="750" width="206" height="200" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="121" y="772" text-anchor="middle" fill="#475569" font-size="9" font-weight="800" letter-spacing="1">LEGEND</text>
+<line x1="30" y1="784" x2="70" y2="784" stroke="#f59e0b" stroke-width="2"/>
+<text x="80" y="788" fill="#64748b" font-size="8">JSON-RPC stdio (MCP #1)</text>
+<line x1="30" y1="802" x2="70" y2="802" stroke="#10b981" stroke-width="2"/>
+<text x="80" y="806" fill="#64748b" font-size="8">StreamableHTTP (MCP #2)</text>
+<line x1="30" y1="820" x2="70" y2="820" stroke="#8b5cf6" stroke-width="2"/>
+<text x="80" y="824" fill="#64748b" font-size="8">Direct HTTPS API call</text>
+<line x1="30" y1="838" x2="70" y2="838" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="4,2"/>
+<text x="80" y="842" fill="#64748b" font-size="8">SQL / pgvector query</text>
+<line x1="30" y1="856" x2="70" y2="856" stroke="#ef4444" stroke-width="2"/>
+<text x="80" y="860" fill="#64748b" font-size="8">SMTP email send</text>
+<line x1="30" y1="874" x2="70" y2="874" stroke="#475569" stroke-width="1.5" stroke-dasharray="3,2"/>
+<text x="80" y="878" fill="#64748b" font-size="8">Internal invoke / trigger</text>
+<circle cx="42" cy="892" r="7" fill="#ea580c"/>
+<text x="42" y="896" text-anchor="middle" fill="white" font-size="7" font-weight="800">N</text>
+<text x="80" y="896" fill="#64748b" font-size="8">Numbered step in flow</text>
+<text x="121" y="930" text-anchor="middle" fill="#94a3b8" font-size="8">All MCP calls use client.callTool()</text>
+<text x="121" y="944" text-anchor="middle" fill="#94a3b8" font-size="8">Graceful fallback: if MCP fails,</text>
+<text x="121" y="958" text-anchor="middle" fill="#94a3b8" font-size="8">logic runs in-process directly</text>
+
+<!-- ═══ FOOTER ═══ -->
+<rect x="0" y="1022" width="1580" height="38" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="20" y="1046" fill="#94a3b8" font-size="9">TrenHire Interview Assistant · Full Architecture · CV-to-Calendar End-to-End Flow</text>
+<text x="1560" y="1046" text-anchor="end" fill="#94a3b8" font-size="9">LangGraph.js · MCP SDK · PostgreSQL + pgvector · Groq · Gemini · Ollama</text>
+
+</svg>`;
+
 const html = `<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8"/>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&family=Fira+Code:wght@400;500&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#ffffff;color:#1e293b;font-size:14px;line-height:1.7}
-
-/* ── PAGE SHELL ── */
-.page{width:210mm;min-height:297mm;padding:14mm 16mm;page-break-after:always;position:relative;overflow:hidden}
-.page:last-child{page-break-after:avoid}
-
-/* ── COVER ── */
-.cover{background:linear-gradient(145deg,#0f172a 0%,#1e1b4b 45%,#0f172a 100%);color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:20mm}
-.cover-pill{background:rgba(99,102,241,.25);border:1px solid #6366f1;color:#a5b4fc;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding:5px 16px;border-radius:99px;margin-bottom:24px}
-.cover h1{font-size:46px;font-weight:900;line-height:1.15;margin-bottom:14px;background:linear-gradient(135deg,#818cf8,#c084fc,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.cover .sub{font-size:15px;color:#94a3b8;margin-bottom:36px;max-width:480px}
-.cover-chips{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-.chip{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 16px;font-size:12px;color:#cbd5e1;text-align:center}
-.chip strong{display:block;font-size:15px;color:#fff;font-weight:700}
-
-/* ── SECTION HEADER ── */
-.sec-tag{font-size:9px;letter-spacing:3px;text-transform:uppercase;font-weight:700;margin-bottom:5px}
-.sec-tag.purple{color:#6366f1}
-.sec-tag.green{color:#10b981}
-.sec-tag.blue{color:#0ea5e9}
-.sec-tag.orange{color:#f59e0b}
-.sec-tag.pink{color:#ec4899}
-h2{font-size:26px;font-weight:900;color:#0f172a;margin-bottom:6px;line-height:1.2}
-h3{font-size:16px;font-weight:800;color:#1e293b;margin:20px 0 8px}
-h4{font-size:13px;font-weight:700;color:#374151;margin:12px 0 5px}
-.lead{font-size:13.5px;color:#64748b;margin-bottom:18px;line-height:1.65}
-.divider{height:1px;background:#f1f5f9;margin:18px 0}
-
-/* ── ANALOGY BOX ── */
-.analogy{background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-left:4px solid #7c3aed;border-radius:0 10px 10px 0;padding:14px 18px;margin:14px 0}
-.analogy .a-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:800;color:#7c3aed;margin-bottom:5px}
-.analogy p{font-size:13px;color:#4c1d95;line-height:1.65}
-.analogy strong{color:#3730a3}
-
-/* ── HIGHLIGHT BOX ── */
-.hbox{border-radius:10px;padding:14px 18px;margin:10px 0;font-size:13px;line-height:1.65}
-.hbox.blue{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
-.hbox.green{background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d}
-.hbox.yellow{background:#fffbeb;border:1px solid #fde68a;color:#78350f}
-.hbox.red{background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d}
-.hbox strong{font-weight:700}
-
-/* ── CARDS ── */
-.card-row{display:grid;gap:10px;margin:12px 0}
-.card-row.col3{grid-template-columns:repeat(3,1fr)}
-.card-row.col2{grid-template-columns:repeat(2,1fr)}
-.card-row.col4{grid-template-columns:repeat(4,1fr)}
-.card{border-radius:10px;padding:14px;border:1.5px solid #e2e8f0}
-.card .c-icon{font-size:22px;margin-bottom:8px}
-.card h4{font-size:12px;margin:0 0 5px}
-.card p{font-size:11.5px;color:#64748b;line-height:1.55}
-.card.purple{border-color:#a5b4fc;background:#eef2ff}
-.card.green{border-color:#6ee7b7;background:#f0fdf4}
-.card.yellow{border-color:#fcd34d;background:#fffbeb}
-.card.pink{border-color:#f9a8d4;background:#fdf2f8}
-.card.cyan{border-color:#67e8f9;background:#ecfeff}
-.card.gray{border-color:#e2e8f0;background:#f8fafc}
-.card.dark{border-color:#334155;background:#1e293b;color:#e2e8f0}
-.card.dark h4{color:#a5b4fc}
-.card.dark p{color:#94a3b8}
-
-/* ── CODE BLOCK ── */
-.code-box{background:#0f172a;border-radius:10px;overflow:hidden;margin:10px 0;font-size:11px}
-.code-top{background:#1e293b;padding:6px 14px;display:flex;align-items:center;gap:6px}
-.dot{width:9px;height:9px;border-radius:50%}
-.dr{background:#ef4444}.dy{background:#f59e0b}.dg{background:#22c55e}
-.fname{color:#64748b;font-size:10px;margin-left:4px;font-family:'Fira Code',monospace}
-pre{padding:14px 16px;font-family:'Fira Code',monospace;line-height:1.65;color:#cbd5e1;white-space:pre-wrap;font-size:11px}
-.kw{color:#c084fc}.fn{color:#38bdf8}.str{color:#86efac}.cm{color:#475569;font-style:italic}.num{color:#fb923c}.obj{color:#fde68a}.ty{color:#f472b6}
-
-/* ── FLOW STEPS (numbered) ── */
-.steps{display:flex;flex-direction:column;gap:0;margin:12px 0}
-.step{display:flex;gap:12px;align-items:flex-start}
-.step-left{display:flex;flex-direction:column;align-items:center;width:34px;flex-shrink:0}
-.step-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0}
-.step-num.purple{background:linear-gradient(135deg,#6366f1,#8b5cf6)}
-.step-num.green{background:linear-gradient(135deg,#10b981,#059669)}
-.step-num.orange{background:linear-gradient(135deg,#f59e0b,#d97706)}
-.step-num.pink{background:linear-gradient(135deg,#ec4899,#db2777)}
-.step-num.blue{background:linear-gradient(135deg,#0ea5e9,#0284c7)}
-.step-line{width:2px;flex:1;min-height:16px;background:linear-gradient(to bottom,#e2e8f0,transparent);margin-top:3px}
-.step-body{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;flex:1;margin-bottom:8px}
-.step-body h5{font-size:13px;font-weight:700;color:#1e293b;margin-bottom:3px}
-.step-body p{font-size:12px;color:#64748b;line-height:1.6}
-.step-body .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.tag{font-size:10px;padding:2px 8px;border-radius:4px;font-family:'Fira Code',monospace;font-weight:500}
-.tag.purple{background:#eef2ff;color:#4f46e5}
-.tag.green{background:#f0fdf4;color:#059669}
-.tag.yellow{background:#fffbeb;color:#b45309}
-.tag.pink{background:#fdf2f8;color:#be185d}
-.tag.blue{background:#eff6ff;color:#1d4ed8}
-
-/* ── BIG VISUAL FLOW (boxes + arrows) ── */
-.visual-flow{display:flex;flex-direction:column;align-items:center;gap:0;margin:14px 0}
-.vf-box{border-radius:12px;padding:12px 24px;text-align:center;min-width:200px;max-width:360px}
-.vf-box h5{font-size:13px;font-weight:800;margin-bottom:2px}
-.vf-box p{font-size:11px;opacity:.85}
-.vf-box.start{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
-.vf-box.process{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff}
-.vf-box.ai{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
-.vf-box.decision{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border-radius:8px}
-.vf-box.end{background:linear-gradient(135deg,#ec4899,#db2777);color:#fff}
-.vf-arrow{font-size:20px;color:#94a3b8;line-height:1;margin:3px 0;text-align:center}
-.vf-branch{display:flex;gap:16px;justify-content:center;align-items:flex-start;width:100%}
-.vf-branch-item{display:flex;flex-direction:column;align-items:center;gap:0;flex:1}
-
-/* ── TWO-COLUMN ── */
-.col2-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0}
-
-/* ── MCP COMPARE ── */
-.mcp-side{border-radius:12px;padding:16px;border:2px solid}
-.mcp-side.local{border-color:#6366f1;background:#eef2ff}
-.mcp-side.remote{border-color:#10b981;background:#f0fdf4}
-.mcp-side h4{font-size:13px;font-weight:800;margin-bottom:8px}
-.mcp-side.local h4{color:#4f46e5}
-.mcp-side.remote h4{color:#059669}
-.mcp-prop{display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06)}
-.mcp-prop:last-child{border:none}
-.mcp-prop span{color:#64748b}
-.mcp-prop strong{color:#1e293b;font-weight:600}
-
-/* ── TABLE ── */
-table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
-th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#64748b;font-weight:700;border-bottom:2px solid #e2e8f0}
-td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#374151;vertical-align:top}
-tr:last-child td{border:none}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:'Fira Code',monospace}
-.bg-purple{background:#eef2ff;color:#4f46e5}
-.bg-green{background:#f0fdf4;color:#059669}
-.bg-yellow{background:#fffbeb;color:#b45309}
-.bg-pink{background:#fdf2f8;color:#be185d}
-.bg-cyan{background:#ecfeff;color:#0e7490}
-.bg-gray{background:#f1f5f9;color:#475569}
-
-/* ── WIRE FORMAT ── */
-.wire{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
-.wire-side{background:#0f172a;border-radius:10px;overflow:hidden}
-.wire-head{background:#1e293b;padding:6px 12px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700}
-.wire-head.send{color:#38bdf8}
-.wire-head.recv{color:#86efac}
-
-/* ── ARCH DIAGRAM ── */
-.arch{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:18px;margin:12px 0}
-.arch-row{display:flex;align-items:center;gap:8px;margin:4px 0}
-.arch-box-sm{border-radius:8px;padding:6px 12px;font-size:11.5px;font-weight:700;white-space:nowrap}
-.arch-box-sm.purple{background:#eef2ff;color:#4f46e5;border:1.5px solid #a5b4fc}
-.arch-box-sm.green{background:#f0fdf4;color:#059669;border:1.5px solid #6ee7b7}
-.arch-box-sm.yellow{background:#fffbeb;color:#b45309;border:1.5px solid #fcd34d}
-.arch-box-sm.pink{background:#fdf2f8;color:#be185d;border:1.5px solid #f9a8d4}
-.arch-box-sm.cyan{background:#ecfeff;color:#0e7490;border:1.5px solid #67e8f9}
-.arch-box-sm.gray{background:#f1f5f9;color:#475569;border:1.5px solid #e2e8f0}
-.arch-box-sm.dark{background:#1e293b;color:#e2e8f0;border:1.5px solid #334155}
-.arch-arrow{color:#94a3b8;font-size:16px;font-weight:700}
-.arch-label{font-size:10px;color:#94a3b8;font-style:italic}
-.arch-section{margin:10px 0}
-.arch-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:#94a3b8;margin-bottom:6px}
-
-/* ── FOOTER ── */
-.page-foot{position:absolute;bottom:10mm;left:16mm;right:16mm;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:6px}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: white; width: 1587px; height: 1123px; overflow: hidden; }
 </style>
 </head>
-<body>
-
-<!-- ══════════════════════════════════════════
-  COVER
-══════════════════════════════════════════ -->
-<div class="page cover">
-  <div class="cover-pill">Architecture Guide · April 2026</div>
-  <h1>InterviewAssist<br/>How It All Works</h1>
-  <p class="sub">A step-by-step guide explaining the full system — from a candidate sending a resume to a calendar event being created — with real code examples. Written so a 15-year-old can follow along.</p>
-  <div class="cover-chips">
-    <div class="chip"><strong>2</strong>MCP Servers</div>
-    <div class="chip"><strong>Ollama</strong>Local AI</div>
-    <div class="chip"><strong>Groq</strong>Cloud LLM</div>
-    <div class="chip"><strong>Gemini</strong>Video AI</div>
-    <div class="chip"><strong>9</strong>Chapters</div>
-    <div class="chip"><strong>PostgreSQL</strong>Database</div>
-  </div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH1 · WHAT IS THIS SYSTEM
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag purple">Chapter 1</div>
-  <h2>What Is This System?</h2>
-  <p class="lead">A fully automated hiring assistant. When a candidate applies for a job, this system handles <em>everything</em> by itself — no human needs to click anything.</p>
-
-  <div class="analogy">
-    <div class="a-label">🎮 Video game analogy</div>
-    <p>Imagine an RPG game where a new player (candidate) submits their character sheet (resume). The game engine automatically checks if the character is unique, rates their stats, sends them a quest (video interview), reviews the quest recording, finds the best dungeon boss (interviewer) to fight them, and locks in a battle time (calendar event). <strong>All automatically.</strong></p>
-  </div>
-
-  <div class="card-row col3" style="margin-top:14px">
-    <div class="card purple"><div class="c-icon">📄</div><h4>Step 1 — Resume In</h4><p>Candidate uploads PDF via website or sends it by email</p></div>
-    <div class="card yellow"><div class="c-icon">🤖</div><h4>Step 2 — AI Reads It</h4><p>Local AI (Ollama) + Cloud AI (Groq) score the resume 0–100</p></div>
-    <div class="card green"><div class="c-icon">🎥</div><h4>Step 3 — Video Quiz</h4><p>Candidate records a short video. AI watches and scores confidence</p></div>
-    <div class="card pink"><div class="c-icon">📅</div><h4>Step 4 — Auto-Schedule</h4><p>System picks the best interviewer + time slot and confirms it</p></div>
-    <div class="card cyan"><div class="c-icon">🗓️</div><h4>Step 5 — Calendar Event</h4><p>Real calendar event created on Google/Yahoo via MCP server</p></div>
-    <div class="card gray"><div class="c-icon">📧</div><h4>Throughout — Emails</h4><p>Candidate and interviewer get emails at every step automatically</p></div>
-  </div>
-
-  <h3>The 4 People in the System</h3>
-  <div class="card-row col2">
-    <div class="card gray"><div class="c-icon">👤</div><h4>Candidate</h4><p>The job applicant. Uploads resume, records a video, picks an interview time. Sees their own dashboard.</p></div>
-    <div class="card gray"><div class="c-icon">🧑‍💼</div><h4>Interviewer</h4><p>The person who conducts the interview. Sets their free time slots, gets notified when a slot is booked.</p></div>
-    <div class="card gray"><div class="c-icon">👑</div><h4>Admin (HR)</h4><p>Controls all settings. Creates job postings, reviews results, approves tricky assignments.</p></div>
-    <div class="card gray"><div class="c-icon">🤖</div><h4>AI (silent worker)</h4><p>Runs 24/7 in the background. Scores, schedules, emails — never complains, never sleeps.</p></div>
-  </div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 1 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH2 · WHAT IS MCP
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag purple">Chapter 2</div>
-  <h2>What is MCP?</h2>
-  <p class="lead"><strong>Model Context Protocol</strong> — a standard language that lets AI systems talk to tools. Think of it as a universal remote control for AI-powered tools.</p>
-
-  <div class="analogy">
-    <div class="a-label">🔌 The USB Cable Analogy</div>
-    <p>A <strong>USB cable</strong> connects any device to any computer — keyboard, mouse, webcam, hard drive. You don't need a different cable for each device. <strong>MCP is the "USB cable" for AI tools.</strong> Our system can call Google Calendar, Yahoo Calendar, or any future calendar tool using the <em>exact same code</em> — just plug in a different MCP server URL.</p>
-  </div>
-
-  <div class="col2-layout" style="margin-top:14px">
-    <div>
-      <h3>Without MCP (the old painful way)</h3>
-      <div class="hbox red">
-        <strong>Google Calendar:</strong> import Google SDK, learn their API, write custom code<br/>
-        <strong>Switch to Yahoo:</strong> delete all that code, import Yahoo SDK, learn their API, write new code<br/>
-        <strong>Switch to Outlook:</strong> do it all over again 😩
-      </div>
-    </div>
-    <div>
-      <h3>With MCP (our way)</h3>
-      <div class="hbox green">
-        <strong>Google Calendar:</strong> plug in Google MCP URL → done ✓<br/>
-        <strong>Switch to Yahoo:</strong> change the URL → done ✓<br/>
-        <strong>Switch to Outlook:</strong> change the URL → done ✓<br/>
-        <strong>Zero code changes ever again 🎉</strong>
-      </div>
-    </div>
-  </div>
-
-  <h3>How MCP Works — 3 Simple Steps</h3>
-  <div class="steps">
-    <div class="step">
-      <div class="step-left"><div class="step-num purple">1</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>🔗 Connect</h5><p>Our app opens a connection to the MCP server (either a child process on the same computer, or an HTTPS URL on the internet)</p><div class="tags"><span class="tag purple">client.connect(transport)</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num purple">2</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>🔍 Discover</h5><p>Ask "what tools do you have?" — the MCP server replies with a list of all available tools and what they do</p><div class="tags"><span class="tag purple">client.listTools()</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num purple">3</div></div>
-      <div class="step-body"><h5>⚡ Call</h5><p>Pick a tool by name, send the data it needs, get a result back. Done!</p><div class="tags"><span class="tag purple">client.callTool({ name: "create_event", arguments: {...} })</span></div></div>
-    </div>
-  </div>
-
-  <h3>What Goes Over the Wire — JSON-RPC</h3>
-  <p style="color:#64748b;font-size:12px;margin-bottom:8px">Every MCP message is a JSON object. Here's exactly what our system sends and receives:</p>
-  <div class="wire">
-    <div class="wire-side">
-      <div class="wire-head send">→ Our App SENDS</div>
-      <pre><span class="obj">"method"</span>: <span class="str">"tools/call"</span>,
-<span class="obj">"params"</span>: {
-  <span class="obj">"name"</span>: <span class="str">"create_event"</span>,
-  <span class="obj">"arguments"</span>: {
-    <span class="obj">"summary"</span>: <span class="str">"Interview"</span>,
-    <span class="obj">"start"</span>: <span class="str">"2026-05-01T10:00Z"</span>
-  }
-}</pre>
-    </div>
-    <div class="wire-side">
-      <div class="wire-head recv">← MCP Server REPLIES</div>
-      <pre><span class="obj">"result"</span>: {
-  <span class="obj">"content"</span>: [{
-    <span class="obj">"type"</span>: <span class="str">"text"</span>,
-    <span class="obj">"text"</span>: <span class="str">"Event created!"</span>
-  }]
-}</pre>
-    </div>
-  </div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 2 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH3 · THE TWO MCPs
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag green">Chapter 3</div>
-  <h2>Our Two MCP Servers</h2>
-  <p class="lead">This system runs exactly <strong>2 MCP connections</strong>. One lives on the same computer (internal), one talks to the internet (external calendar).</p>
-
-  <div class="col2-layout">
-    <div class="mcp-side local">
-      <h4>🔧 MCP #1 — Local Node Tools</h4>
-      <div class="mcp-prop"><span>Location</span><strong>Same computer as app</strong></div>
-      <div class="mcp-prop"><span>Transport</span><strong>stdio (pipes)</strong></div>
-      <div class="mcp-prop"><span>Always on?</span><strong>Yes — starts with app</strong></div>
-      <div class="mcp-prop"><span>Auth needed?</span><strong>No</strong></div>
-      <div class="mcp-prop"><span>Purpose</span><strong>Resume, scheduling, HR</strong></div>
-      <div class="mcp-prop"><span>Tools count</span><strong>10 tools</strong></div>
-    </div>
-    <div class="mcp-side remote">
-      <h4>🗓️ MCP #2 — External Calendar</h4>
-      <div class="mcp-prop"><span>Location</span><strong>Cloud (Google/Yahoo/etc)</strong></div>
-      <div class="mcp-prop"><span>Transport</span><strong>StreamableHTTP (HTTPS)</strong></div>
-      <div class="mcp-prop"><span>Always on?</span><strong>No — called per event</strong></div>
-      <div class="mcp-prop"><span>Auth needed?</span><strong>Yes — Bearer token</strong></div>
-      <div class="mcp-prop"><span>Purpose</span><strong>Create calendar events</strong></div>
-      <div class="mcp-prop"><span>Tools count</span><strong>1 tool (create_event)</strong></div>
-    </div>
-  </div>
-
-  <h3>stdio vs StreamableHTTP — What's the Difference?</h3>
-  <div class="analogy">
-    <div class="a-label">📞 Phone analogy</div>
-    <p><strong>stdio (MCP #1)</strong> = talking to your friend in the same room through a tin-can telephone — fast, private, no internet needed.<br/>
-    <strong>StreamableHTTP (MCP #2)</strong> = calling someone overseas on WhatsApp — goes through the internet, needs authentication, slightly slower but reaches anywhere.</p>
-  </div>
-
-  <h3>MCP #1 — Code: How It Starts at Boot</h3>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/mcp.js — app startup</span></div>
-    <pre><span class="kw">const</span> transport = <span class="kw">new</span> <span class="ty">StdioClientTransport</span>({
-  command: process.execPath,       <span class="cm">// runs "node"</span>
-  args: [NODE_TOOLS_SERVER_PATH],  <span class="cm">// starts mcp-node-tools-server.js as child process</span>
-});
-<span class="cm">// The MCP server is now a separate process talking through stdin/stdout</span>
-<span class="kw">await</span> client.<span class="fn">connect</span>(transport);
-console.<span class="fn">log</span>(<span class="str">"MCP #1 ready ✓"</span>);</pre>
-  </div>
-
-  <h3>MCP #2 — Code: How It Connects Per Calendar Event</h3>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/calendar-mcp.js — buildMCPClient()</span></div>
-    <pre><span class="kw">const</span> transport = <span class="kw">new</span> <span class="ty">StreamableHTTPClientTransport</span>(
-  <span class="kw">new</span> <span class="ty">URL</span>(mcpUrl),    <span class="cm">// e.g. "https://calendarmcp.googleapis.com/mcp/v1"</span>
-  {
-    requestInit: {
-      headers: { Authorization: <span class="str">\`Bearer \${mcpKey}\`</span> }  <span class="cm">// your API key</span>
-    }
-  }
-);
-<span class="kw">await</span> client.<span class="fn">connect</span>(transport);
-<span class="cm">// Now call the tool — works for Google, Yahoo, or ANY MCP calendar server</span>
-<span class="kw">await</span> client.<span class="fn">callTool</span>({ name: <span class="str">"create_event"</span>, arguments: eventArgs });</pre>
-  </div>
-
-  <div class="hbox blue"><strong>Key Point:</strong> The <code>client.callTool()</code> line is <strong>identical</strong> whether you use Google or Yahoo. The MCP protocol is the same — only the URL changes. That's the whole magic.</div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 3 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH4 · HOW OLLAMA WORKS
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag orange">Chapter 4</div>
-  <h2>How Ollama Connects</h2>
-  <p class="lead">Ollama is a local AI model that runs on your own computer. It converts text into numbers (called <em>vectors</em> or <em>embeddings</em>) so the system can measure how similar two pieces of text are.</p>
-
-  <div class="analogy">
-    <div class="a-label">📍 GPS Coordinates Analogy</div>
-    <p>Every city on Earth has GPS coordinates (latitude, longitude). London: <strong>(51.5, -0.1)</strong>. Paris: <strong>(48.8, 2.3)</strong>. They're close! New York: <strong>(40.7, -74.0)</strong>. Far away.<br/><br/>
-    Ollama does the same for text. "Experienced Python developer" and "5 years coding in Python" get <strong>similar numbers</strong>. "Loves surfing" gets <strong>very different numbers</strong>. This lets us answer: <em>"How well does this resume match this job description?"</em></p>
-  </div>
-
-  <div class="col2-layout" style="margin-top:14px">
-    <div class="card yellow">
-      <div class="c-icon">🦙</div>
-      <h4>Ollama — NOT MCP</h4>
-      <p>Ollama uses a simple REST HTTP call — not the MCP protocol. It runs at <strong>localhost:11434</strong> and we just POST text to it. No API key needed.</p>
-    </div>
-    <div class="card green">
-      <div class="c-icon">🔢</div>
-      <h4>Model: nomic-embed-text</h4>
-      <p>Converts any text into a list of <strong>768 numbers</strong>. This list is called a "vector". Similar texts get similar vectors. Runs 100% offline.</p>
-    </div>
-  </div>
-
-  <h3>The Code — Calling Ollama</h3>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/embeddings.js — embedOllama()</span></div>
-    <pre><span class="kw">async function</span> <span class="fn">embedOllama</span>(text, baseUrl) {
-  <span class="cm">// Simple HTTP POST — plain REST, NOT MCP</span>
-  <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">\`\${baseUrl}/api/embeddings\`</span>, {
-    method: <span class="str">"POST"</span>,
-    headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> },
-    body: <span class="ty">JSON</span>.<span class="fn">stringify</span>({
-      model: <span class="str">"nomic-embed-text"</span>,  <span class="cm">// the local AI model</span>
-      prompt: text               <span class="cm">// text to convert into numbers</span>
-    })
-  });
-  <span class="kw">const</span> data = <span class="kw">await</span> res.<span class="fn">json</span>();
-  <span class="kw">return</span> data.embedding;
-  <span class="cm">// returns: [0.12, -0.54, 0.98, 0.03, -0.71, ...] — 768 numbers</span>
-}</pre>
-  </div>
-
-  <h3>Ollama is Triggered TWICE in the System</h3>
-  <div class="steps">
-    <div class="step">
-      <div class="step-left"><div class="step-num orange">1</div><div class="step-line"></div></div>
-      <div class="step-body">
-        <h5>When Admin saves a Job Description</h5>
-        <p>The job description text is split into 500-character chunks. Each chunk → Ollama → vector → saved into PostgreSQL. This builds the "knowledge base" for this job.</p>
-        <div class="tags"><span class="tag yellow">storeJDChunks()</span><span class="tag yellow">Trigger: Admin saves JD</span></div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num orange">2</div></div>
-      <div class="step-body">
-        <h5>When a Candidate Resume Arrives</h5>
-        <p>Resume text → Ollama → vector → compare against all JD vectors → find top 5 most relevant JD sections → pass those + resume to Groq for scoring.</p>
-        <div class="tags"><span class="tag yellow">retrieveRelevantChunks()</span><span class="tag yellow">Trigger: Resume upload</span></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/embeddings.js — Finding best JD matches for a resume</span></div>
-    <pre><span class="kw">export async function</span> <span class="fn">retrieveRelevantChunks</span>(resumeText, interviewId) {
-  <span class="cm">// 1. Turn resume text into a vector (768 numbers)</span>
-  <span class="kw">const</span> queryVec = <span class="kw">await</span> <span class="fn">embedText</span>(resumeText);
-
-  <span class="cm">// 2. Find top 5 JD chunks whose vectors are closest to the resume vector</span>
-  <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">query</span>(<span class="str">\`
-    SELECT chunk_text FROM jd_chunks
-    WHERE interview_id = $1
-    ORDER BY embedding &lt;=&gt; $2   -- &lt;=&gt; is "cosine distance" in pgvector
-    LIMIT 5
-  \`</span>, [interviewId, queryVec]);
-
-  <span class="kw">return</span> result.rows.<span class="fn">map</span>(r => r.chunk_text);
-  <span class="cm">// e.g. returns the 5 JD sections most relevant to this resume</span>
-}</pre>
-  </div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 4 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH5 · FULL END-TO-END FLOW
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag blue">Chapter 5</div>
-  <h2>Full Journey — Resume to Calendar Event</h2>
-  <p class="lead">Every single step, in order. Numbers match the code explanations in the next chapters.</p>
-
-  <div class="steps">
-    <div class="step">
-      <div class="step-left"><div class="step-num blue">1</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>📥 Resume Arrives</h5><p>Candidate uploads PDF on the website (POST /upload) OR emails it to the company inbox (IMAP poller checks every 60 seconds)</p><div class="tags"><span class="tag blue">POST /upload</span><span class="tag blue">IMAP polling</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num blue">2</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>🔍 Duplicate Check</h5><p>System checks: has this email or this exact file been submitted before for this job? If yes → reject immediately. If no → save to database with status "Screening".</p><div class="tags"><span class="tag blue">checkDomainAndDuplicate()</span><span class="tag blue">PostgreSQL query</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num orange">3</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>📝 Text Extraction</h5><p>The PDF or DOCX file is opened and all text is pulled out. PDF → pdf-parse library. DOCX → mammoth library.</p><div class="tags"><span class="tag yellow">pdf-parse</span><span class="tag yellow">mammoth (DOCX)</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num orange">4</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>🦙 Ollama Embedding — Local AI</h5><p>Resume text is sent to Ollama running locally. Ollama returns 768 numbers. pgvector finds the top 5 most similar job description sections.</p><div class="tags"><span class="tag yellow">POST localhost:11434/api/embeddings</span><span class="tag yellow">pgvector cosine search</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num purple">5</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>⚡ Groq LLM Scoring — Cloud AI</h5><p>The 5 relevant JD sections + the full resume text are sent to Groq (cloud). Groq scores the candidate 0–100. Score saved to database.</p><div class="tags"><span class="tag purple">llama-3.3-70b via Groq API</span><span class="tag purple">score → PostgreSQL</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num purple">6</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>📧 Video Invite Email</h5><p>If score ≥ pass threshold → candidate gets an email with a link to record a short video interview. Status → "AwaitingVideo".</p><div class="tags"><span class="tag purple">sendInvitationEmail()</span><span class="tag purple">nodemailer</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num pink">7</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>🎥 Video Analysis — Gemini AI</h5><p>Candidate records video. Groq Whisper transcribes speech to text. Gemini 2.5 Flash watches the video → scores confidence, communication, body language.</p><div class="tags"><span class="tag pink">Groq Whisper → transcript</span><span class="tag pink">Gemini 2.5 Flash → score</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num green">8</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>⏱️ Auto-Schedule Background Worker</h5><p>Every few minutes, a background timer checks for candidates with status "Done" and no scheduled interview. These get auto-assigned.</p><div class="tags"><span class="tag green">setInterval → runAutoScheduleTick()</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num green">9</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>🧑‍💼 Interviewer Matching</h5><p>Groq AI scores each available interviewer's skills vs job requirements. If best match score &lt; 40% → HR review request. If ≥ 40% → auto-assign.</p><div class="tags"><span class="tag green">suggestInterviewersForCandidate()</span><span class="tag yellow">HR gate: &lt;40% → human review</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num green">10</div><div class="step-line"></div></div>
-      <div class="step-body"><h5>✅ Slot Confirmed + Emails</h5><p>Best available slot is booked. A database row is created (status = confirmed). Candidate + Interviewer both receive a confirmation email with the meeting link.</p><div class="tags"><span class="tag green">scheduled_interviews table</span><span class="tag green">sendScheduleConfirmedEmails()</span></div></div>
-    </div>
-    <div class="step">
-      <div class="step-left"><div class="step-num pink">11</div></div>
-      <div class="step-body"><h5>🗓️ Calendar MCP Event — External AI</h5><p>If a calendar MCP server is configured in admin settings → our app connects via HTTPS and calls <code>create_event</code> tool. Works with Google, Yahoo, or any MCP-compliant calendar. If nothing configured → emails only, no crash.</p><div class="tags"><span class="tag pink">StreamableHTTP → external MCP</span><span class="tag green">fire-and-forget (non-blocking)</span></div></div>
-    </div>
-  </div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 5 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH6 · CODE: LOCAL MCP TOOL CALL
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag purple">Chapter 6</div>
-  <h2>Code Walkthrough — Local MCP Tool Call</h2>
-  <p class="lead">Let's trace exactly what happens when the system calls <code>analyze_resume</code> through MCP #1. Three files work together.</p>
-
-  <h3>File 1: The Caller — mcp.js</h3>
-  <p style="color:#64748b;font-size:12px;margin-bottom:6px">The main app sends a tool call request through the stdio pipe to the child process.</p>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/mcp.js</span></div>
-    <pre><span class="cm">// Generic tool caller — works for any tool name</span>
-<span class="kw">export async function</span> <span class="fn">callMCPTool</span>(name, args = {}) {
-  <span class="kw">const</span> result = <span class="kw">await</span> nodeToolsClient.<span class="fn">callTool</span>({ name, arguments: args });
-  <span class="kw">const</span> parsed = <span class="fn">parseToolResult</span>(result); <span class="cm">// unwrap the JSON text</span>
-  <span class="kw">return</span> parsed;
-}
-
-<span class="cm">// Specific helper for resume analysis</span>
-<span class="kw">export async function</span> <span class="fn">analyzeResumeOnlyViaMCP</span>(payload) {
-  <span class="kw">return</span> <span class="fn">callMCPTool</span>(<span class="str">"analyze_resume_only"</span>, payload);
-}</pre>
-  </div>
-
-  <h3>File 2: The Server — mcp-node-tools-server.js</h3>
-  <p style="color:#64748b;font-size:12px;margin-bottom:6px">The child process receives the call, validates inputs, runs the logic, sends back the result.</p>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/mcp-node-tools-server.js</span></div>
-    <pre>server.<span class="fn">tool</span>(
-  <span class="str">"analyze_resume_only"</span>,
-  <span class="str">"Score a resume against the job description"</span>,
-  {
-    threadId:     z.<span class="fn">string</span>().<span class="fn">min</span>(<span class="num">1</span>),   <span class="cm">// Zod validates inputs automatically</span>
-    interviewId:  z.<span class="fn">string</span>().<span class="fn">uuid</span>(),
-    resumeBase64: z.<span class="fn">string</span>().<span class="fn">min</span>(<span class="num">1</span>),
-  },
-  <span class="kw">async</span> ({ threadId, interviewId, resumeBase64 }) => {
-    <span class="kw">const</span> resumeBuffer = <span class="ty">Buffer</span>.<span class="fn">from</span>(resumeBase64, <span class="str">"base64"</span>);
-    <span class="kw">const</span> analysis = <span class="kw">await</span> <span class="fn">analyzeResume</span>({ threadId, interviewId, resumeBuffer });
-    <span class="kw">return</span> {
-      content: [{ type: <span class="str">"text"</span>, text: <span class="ty">JSON</span>.<span class="fn">stringify</span>({ ok: <span class="kw">true</span>, ...analysis }) }]
-    };
-  }
-);</pre>
-  </div>
-
-  <h3>File 3: The Logic — nodes.js (with smart fallback)</h3>
-  <p style="color:#64748b;font-size:12px;margin-bottom:6px">The actual business logic. Tries MCP first, falls back to direct code if MCP is unavailable.</p>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/graph/nodes.js — analyzeResume()</span></div>
-    <pre><span class="kw">export async function</span> <span class="fn">analyzeResume</span>(state) {
-  <span class="cm">// Try MCP first</span>
-  <span class="kw">if</span> (<span class="fn">isMCPAvailable</span>()) {
-    <span class="kw">try</span> {
-      <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">analyzeResumeOnlyViaMCP</span>({ threadId, interviewId, resumeBase64 });
-      <span class="kw">if</span> (result?.resumeScore) <span class="kw">return</span> result; <span class="cm">// ✓ MCP worked</span>
-    } <span class="kw">catch</span> (err) {
-      console.<span class="fn">warn</span>(<span class="str">"MCP failed, using direct logic"</span>); <span class="cm">// graceful fallback</span>
-    }
-  }
-  <span class="cm">// Fallback: run directly without MCP (same result, different path)</span>
-  <span class="cm">// Ollama → embeddings → pgvector search → Groq → score</span>
-  <span class="kw">const</span> chunks = <span class="kw">await</span> <span class="fn">retrieveRelevantChunks</span>(resumeText, interviewId);
-  <span class="kw">return</span> <span class="kw">await</span> <span class="fn">scoreWithGroq</span>(resumeText, chunks);
-}</pre>
-  </div>
-
-  <div class="hbox green"><strong>Why the fallback?</strong> If MCP server crashes → app still works perfectly. The fallback runs the exact same logic directly. This is called "graceful degradation" — the system never goes down just because one piece fails.</div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 6 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH7 · CODE: CALENDAR MCP
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag pink">Chapter 7</div>
-  <h2>Code Walkthrough — Calendar MCP</h2>
-  <p class="lead">How the system creates a real Google/Yahoo/custom calendar event when an interview is confirmed. Three steps, three code blocks.</p>
-
-  <h3>Step 1 — Interview confirmed → fire calendar call</h3>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/scheduler.js — end of sendScheduleConfirmedEmails()</span></div>
-    <pre><span class="kw">export async function</span> <span class="fn">sendScheduleConfirmedEmails</span>(scheduledId) {
-  <span class="cm">// ... send email to candidate ...</span>
-  <span class="cm">// ... send email to interviewer ...</span>
-  <span class="cm">// ... update candidate status to "Scheduled" in DB ...</span>
-
-  <span class="cm">// Fire calendar event — background, won't block emails if it fails</span>
-  <span class="fn">createCalendarEventForScheduledInterview</span>(scheduledId)
-    .<span class="fn">catch</span>((err) => console.<span class="fn">warn</span>(<span class="str">\`CalendarMCP failed: \${err.message}\`</span>));
-  <span class="cm">//  ↑ .catch() means: if calendar fails, just log it — emails already sent ✓</span>
-}</pre>
-  </div>
-
-  <h3>Step 2 — Read config + decide whether to run</h3>
-  <div class="code-box">
-    <div class="code-top"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><span class="fname">src/services/calendar-mcp.js — createCalendarEventForScheduledInterview()</span></div>
-    <pre><span class="kw">export async function</span> <span class="fn">createCalendarEventForScheduledInterview</span>(scheduledId) {
-  <span class="cm">// Read settings the admin set in the UI</span>
-  <span class="kw">const</span> cfg = <span class="kw">await</span> <span class="fn">getCalendarConfig</span>();
-  <span class="cm">// cfg = { provider: "google", mcpUrl: "https://...", mcpKey: "abc123", toolName: "create_event" }</span>
-
-  <span class="cm">// If admin set "None" or left URL/key blank → do nothing, return early</span>
-  <span class="kw">if</span> (!<span class="fn">isCalendarConfigured</span>(cfg)) <span class="kw">return</span> { ok: <span class="kw">false</span>, reason: <span class="str">"not_configured"</span> };
-
-  <span class="cm">// Fetch interview details from database (who, when, meeting link)</span>
-  <span class="kw">const</span> { slot_start, slot_end, meet_link, cemail, iname, iemail } = si;
-
-  <span class="cm">// Connect to the MCP server (Google or Yahoo — doesn't matter)</span>
-  <span class="kw">const</span> client = <span class="kw">await</span> <span class="fn">buildMCPClient</span>(cfg.mcpUrl, cfg.mcpKey);
-
-  <span class="cm">// Call the tool — same code for any provider!</span>
-  <span class="kw">await</span> client.<span class="fn">callTool</span>({
-    name: cfg.toolName,   <span class="cm">// "create_event" (configurable in admin UI)</span>
-    arguments: {
-      summary:   <span class="str">\`Interview — \${cemail}\`</span>,
-      start:     { dateTime: <span class="kw">new</span> <span class="ty">Date</span>(slot_start).<span class="fn">toISOString</span>() },
-      end:       { dateTime: <span class="kw">new</span> <span class="ty">Date</span>(slot_end).<span class="fn">toISOString</span>() },
-      attendees: [{ email: cemail }, { email: iemail }]
-    }
-  });
-}</pre>
-  </div>
-
-  <h3>Plug-and-Play Switching</h3>
-  <div class="card-row col3">
-    <div class="card green"><div class="c-icon">🔵</div><h4>Google Calendar</h4><p>Set URL = Google MCP endpoint<br/>Set Key = Google OAuth token<br/><strong>Done ✓</strong></p></div>
-    <div class="card yellow"><div class="c-icon">🟣</div><h4>Yahoo Calendar</h4><p>Change URL = Yahoo MCP endpoint<br/>Change Key = Yahoo token<br/><strong>Zero code change ✓</strong></p></div>
-    <div class="card gray"><div class="c-icon">⚫</div><h4>None (default)</h4><p>Leave provider = None<br/>Emails still sent normally<br/><strong>System doesn't crash ✓</strong></p></div>
-  </div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 7 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH8 · ALL TOOLS REFERENCE
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag green">Chapter 8</div>
-  <h2>All MCP Tools — Quick Reference</h2>
-  <p class="lead">Every tool in MCP #1 (Local Node Tools Server). These can be called by our app internally, or by any external agent (Claude Desktop, custom scripts).</p>
-
-  <table>
-    <thead><tr><th>Tool Name</th><th>What It Does (plain English)</th><th>Who calls it</th></tr></thead>
-    <tbody>
-      <tr><td><span class="badge bg-purple">analyze_resume</span></td><td>Full pipeline: checks for duplicates, then scores the resume</td><td>Upload route, email ingest</td></tr>
-      <tr><td><span class="badge bg-purple">analyze_resume_only</span></td><td>Scores resume only — skips duplicate check</td><td>When duplicate check already done</td></tr>
-      <tr><td><span class="badge bg-green">send_invite</span></td><td>Emails the candidate their video interview link</td><td>After resume passes scoring</td></tr>
-      <tr><td><span class="badge bg-cyan">candidate_lookup</span></td><td>Search candidates for a job by email or list all recent ones</td><td>Admin, external agents</td></tr>
-      <tr><td><span class="badge bg-cyan">candidate_benchmarks</span></td><td>Get stats: average score, total count, rejected count, etc.</td><td>Admin dashboard, reports</td></tr>
-      <tr><td><span class="badge bg-yellow">schedule_candidate</span></td><td>Find available slots and email candidate time options to pick from</td><td>Auto-scheduler</td></tr>
-      <tr><td><span class="badge bg-yellow">auto_assign_and_confirm</span></td><td>Full auto: find best interviewer + slot + confirm + send emails</td><td>Background timer every N minutes</td></tr>
-      <tr><td><span class="badge bg-pink">list_hr_assignment_requests</span></td><td>Show all cases where HR needs to manually pick an interviewer</td><td>HR dashboard, admin</td></tr>
-      <tr><td><span class="badge bg-pink">approve_hr_assignment</span></td><td>HR picks an interviewer and the system confirms the booking</td><td>HR admin page</td></tr>
-      <tr><td><span class="badge bg-pink">reject_hr_assignment</span></td><td>HR rejects the request (wrong skills, unavailable, etc.)</td><td>HR admin page</td></tr>
-    </tbody>
-  </table>
-
-  <h3>Technology Stack — All Pieces</h3>
-  <table>
-    <thead><tr><th>Component</th><th>Technology</th><th>Runs where</th><th>Job</th></tr></thead>
-    <tbody>
-      <tr><td>Web Server</td><td><span class="badge bg-green">Express.js (Node.js)</span></td><td>Your server</td><td>Routes, file uploads, sessions, HTML pages</td></tr>
-      <tr><td>Database</td><td><span class="badge bg-cyan">PostgreSQL + pgvector</span></td><td>Your server</td><td>Stores everything + does vector similarity search</td></tr>
-      <tr><td>Local AI (Embeddings)</td><td><span class="badge bg-yellow">Ollama — nomic-embed-text</span></td><td>Your machine (offline)</td><td>Text → 768 numbers. Powers similarity search.</td></tr>
-      <tr><td>Cloud AI (Reasoning)</td><td><span class="badge bg-purple">Groq — llama-3.3-70b</span></td><td>Groq cloud</td><td>Resume scoring, interviewer matching, slot ranking</td></tr>
-      <tr><td>Video Analysis</td><td><span class="badge bg-pink">Gemini 2.5 Flash</span></td><td>Google cloud</td><td>Watch video → score confidence & communication</td></tr>
-      <tr><td>Transcription</td><td><span class="badge bg-pink">Groq Whisper</span></td><td>Groq cloud</td><td>Convert speech to text from video recording</td></tr>
-      <tr><td>MCP #1 (internal)</td><td><span class="badge bg-purple">stdio transport</span></td><td>Your server</td><td>Internal tool server — resume, scheduling, HR ops</td></tr>
-      <tr><td>MCP #2 (calendar)</td><td><span class="badge bg-green">StreamableHTTP</span></td><td>Cloud provider</td><td>Create calendar events — pluggable (Google/Yahoo/etc.)</td></tr>
-      <tr><td>Email Sending</td><td><span class="badge bg-gray">nodemailer</span></td><td>Your server</td><td>Sends all emails via SMTP</td></tr>
-      <tr><td>Email Receiving</td><td><span class="badge bg-gray">imapflow</span></td><td>Your server</td><td>Polls inbox for new resume attachments</td></tr>
-    </tbody>
-  </table>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 8 / 9</span></div>
-</div>
-
-
-<!-- ══════════════════════════════════════════
-  CH9 · VISUAL SYSTEM MAP
-══════════════════════════════════════════ -->
-<div class="page">
-  <div class="sec-tag blue">Chapter 9</div>
-  <h2>Full System Map</h2>
-  <p class="lead">Everything on one page. Follow the arrows from top to bottom to trace a candidate's full journey.</p>
-
-  <!-- Entry points row -->
-  <div class="arch">
-    <div class="arch-title">Entry Points (how data gets in)</div>
-    <div style="display:flex;gap:10px;margin-bottom:10px">
-      <div class="arch-box-sm purple" style="flex:1;text-align:center">🌐 Web Upload<br/><span style="font-size:9px;font-weight:400">POST /upload</span></div>
-      <div class="arch-box-sm purple" style="flex:1;text-align:center">📧 Email Inbox<br/><span style="font-size:9px;font-weight:400">IMAP polling</span></div>
-      <div class="arch-box-sm purple" style="flex:1;text-align:center">🤖 External Agent<br/><span style="font-size:9px;font-weight:400">MCP client (Claude etc.)</span></div>
-    </div>
-    <div style="text-align:center;font-size:18px;color:#94a3b8">↓</div>
-
-    <div class="arch-title" style="margin-top:10px">Main App</div>
-    <div class="arch-box-sm dark" style="width:100%;text-align:center;padding:10px">
-      ⚙️ <strong>Express.js App</strong> — Routes / Auth / File Upload / Sessions
-    </div>
-    <div style="text-align:center;font-size:18px;color:#94a3b8">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</div>
-
-    <div style="display:flex;gap:14px;margin-top:4px">
-      <!-- Left: MCP #1 -->
-      <div style="flex:1;background:#eef2ff;border:1.5px solid #a5b4fc;border-radius:10px;padding:12px">
-        <div style="font-size:10px;font-weight:800;color:#4f46e5;letter-spacing:1px;margin-bottom:8px">MCP #1 — LOCAL (stdio)</div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div class="arch-box-sm purple" style="font-size:10px">analyze_resume</div>
-          <div class="arch-box-sm purple" style="font-size:10px">schedule_candidate</div>
-          <div class="arch-box-sm purple" style="font-size:10px">auto_assign_and_confirm</div>
-          <div class="arch-box-sm purple" style="font-size:10px">send_invite + HR tools</div>
-        </div>
-        <div style="text-align:center;font-size:16px;color:#94a3b8;margin:6px 0">↓</div>
-        <div style="font-size:10px;font-weight:800;color:#4f46e5;margin-bottom:6px">Graph Nodes (nodes.js)</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <div class="arch-box-sm yellow" style="font-size:9px">🦙 Ollama<br/>embeddings</div>
-          <div class="arch-box-sm green" style="font-size:9px">⚡ Groq<br/>scoring</div>
-          <div class="arch-box-sm pink" style="font-size:9px">🎬 Gemini<br/>video</div>
-        </div>
-        <div style="text-align:center;font-size:16px;color:#94a3b8;margin:6px 0">↓</div>
-        <div class="arch-box-sm cyan" style="font-size:10px;width:100%;text-align:center">🗄️ PostgreSQL + pgvector</div>
-      </div>
-
-      <!-- Right: Scheduler + MCP #2 -->
-      <div style="flex:1;background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:10px;padding:12px">
-        <div style="font-size:10px;font-weight:800;color:#059669;letter-spacing:1px;margin-bottom:8px">Scheduler (scheduler.js)</div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div class="arch-box-sm green" style="font-size:10px">⏱ Background timer</div>
-          <div class="arch-box-sm green" style="font-size:10px">🧑‍💼 Match interviewers (Groq)</div>
-          <div class="arch-box-sm yellow" style="font-size:10px">⚠️ HR gate if match &lt;40%</div>
-          <div class="arch-box-sm green" style="font-size:10px">✅ Confirm slot + send emails</div>
-        </div>
-        <div style="text-align:center;font-size:16px;color:#94a3b8;margin:6px 0">↓</div>
-        <div style="font-size:10px;font-weight:800;color:#059669;margin-bottom:6px">MCP #2 — CALENDAR (HTTPS)</div>
-        <div style="display:flex;gap:6px">
-          <div class="arch-box-sm green" style="font-size:9px;flex:1;text-align:center">🔵 Google<br/>Calendar MCP</div>
-          <div class="arch-box-sm green" style="font-size:9px;flex:1;text-align:center">🟣 Yahoo<br/>Calendar MCP</div>
-          <div class="arch-box-sm gray" style="font-size:9px;flex:1;text-align:center">⚫ None<br/>(email only)</div>
-        </div>
-        <div style="margin-top:8px;font-size:10px;color:#059669;font-style:italic;text-align:center">← swap URL to switch provider →</div>
-      </div>
-    </div>
-  </div>
-
-  <h3>The Golden Rules of This Architecture</h3>
-  <div class="card-row col2">
-    <div class="hbox green" style="margin:0"><strong>🛡️ Nothing breaks silently.</strong> If MCP #1 crashes → app falls back to direct logic. If Calendar MCP fails → emails already sent, .catch() logs the error. System keeps running.</div>
-    <div class="hbox blue" style="margin:0"><strong>🔄 Fully pluggable.</strong> Change calendar provider by changing one URL in admin settings. No code changes. No restarts. No redeployment needed.</div>
-    <div class="hbox yellow" style="margin:0"><strong>🦙 Ollama stays private.</strong> Text embedding never leaves your machine. Only the scoring (Groq) and video (Gemini) go to the cloud.</div>
-    <div class="hbox red" style="margin:0"><strong>⚡ MCP is not REST.</strong> It's JSON-RPC over stdio or HTTPS. The SDK handles the protocol — you just call <code>client.callTool()</code> and get a result.</div>
-  </div>
-
-  <div class="page-foot"><span>InterviewAssist — Architecture Guide</span><span>Chapter 9 / 9</span></div>
-</div>
-
-</body>
+<body>${svg}</body>
 </html>`;
 
 async function main() {
@@ -790,10 +413,12 @@ async function main() {
   });
   try {
     const page = await browser.newPage();
+    await page.setViewport({ width: 1587, height: 1123 });
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
     await page.pdf({
       path: outPath,
-      format: "A4",
+      format: "A3",
+      landscape: true,
       printBackground: true,
       margin: { top: "0", right: "0", bottom: "0", left: "0" },
     });

@@ -10,7 +10,7 @@ import { createGraph } from "./graph/index.js";
 import { createApp } from "./app.js";
 import { startCVWatcher } from "./services/watcher.js";
 import { startEmailIngest } from "./services/email-ingest.js";
-import { startAutoSchedulePassedCandidates, startBulkOutcomeEmailWorker } from "./services/scheduler.js";
+import { startAutoSchedulePassedCandidates, startBulkOutcomeEmailWorker, startNoShowMonitor, startVideoReminderWorker } from "./services/scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CVS_DIR = path.join(__dirname, "..", "cvs");
@@ -44,6 +44,8 @@ async function main() {
   startEmailIngest(path.join(CVS_DIR, "auto"));
   startAutoSchedulePassedCandidates();
   startBulkOutcomeEmailWorker();
+  startNoShowMonitor();
+  startVideoReminderWorker();
 
   app.listen(PORT, HOST, () => {
     console.log(`TrenHire running → http://localhost:${PORT}/admin`);

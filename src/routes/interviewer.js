@@ -275,16 +275,37 @@ router.post(
           "UPDATE scheduled_interviews SET status = 'rejected_interviewer' WHERE id = $1",
           [id],
         );
-        // Unblock slot if it was held
         if (si.slot_id) {
           await query(
             "UPDATE interviewer_slots SET status = 'available' WHERE id = $1",
             [si.slot_id],
           );
         }
-        const { sendScheduleRejectedEmail } =
+        const { sendScheduleRejectedEmail, autoAssignAndConfirmCandidate } =
           await import("../services/scheduler.js");
         await sendScheduleRejectedEmail(id, "interviewer");
+
+        // Auto-reschedule with the next available slot
+        try {
+          const { sendAdminNoSlotsAlert } = await import("../services/email.js");
+          const candidateRow = await query(
+            `SELECT c.email, c.interview_id, i.title
+             FROM candidates c JOIN interviews i ON i.id = c.interview_id
+             WHERE c.thread_id = $1`,
+            [si.candidate_id]
+          );
+          if (candidateRow.rows.length) {
+            const { email, interview_id, title } = candidateRow.rows[0];
+            const reSchedule = await autoAssignAndConfirmCandidate(si.candidate_id, interview_id);
+            if (reSchedule?.scheduled && !reSchedule?.alreadyScheduled) {
+              console.log(`[AutoReschedule] Re-scheduled ${si.candidate_id} after portal decline`);
+            } else if (!reSchedule?.scheduled && reSchedule?.reason === "no_slots") {
+              await sendAdminNoSlotsAlert(email, title);
+            }
+          }
+        } catch (reschedErr) {
+          console.error("[AutoReschedule] Failed after portal decline:", reschedErr.message);
+        }
       }
 
       res.redirect("/interviewer/calendar");
@@ -412,9 +433,31 @@ router.post("/confirm/:token", async (req, res, next) => {
           "UPDATE interviewer_slots SET status = 'available' WHERE id = $1",
           [si.slot_id],
         );
-      const { sendScheduleRejectedEmail } =
+      const { sendScheduleRejectedEmail, autoAssignAndConfirmCandidate } =
         await import("../services/scheduler.js");
       await sendScheduleRejectedEmail(si.id, "interviewer");
+
+      // Auto-reschedule with the next available slot
+      try {
+        const { sendAdminNoSlotsAlert } = await import("../services/email.js");
+        const candidateRow = await query(
+          `SELECT c.email, c.interview_id, i.title
+           FROM candidates c JOIN interviews i ON i.id = c.interview_id
+           WHERE c.thread_id = $1`,
+          [si.candidate_id]
+        );
+        if (candidateRow.rows.length) {
+          const { email, interview_id, title } = candidateRow.rows[0];
+          const reSchedule = await autoAssignAndConfirmCandidate(si.candidate_id, interview_id);
+          if (reSchedule?.scheduled && !reSchedule?.alreadyScheduled) {
+            console.log(`[AutoReschedule] Re-scheduled ${si.candidate_id} after interviewer decline via token`);
+          } else if (!reSchedule?.scheduled && reSchedule?.reason === "no_slots") {
+            await sendAdminNoSlotsAlert(email, title);
+          }
+        }
+      } catch (reschedErr) {
+        console.error("[AutoReschedule] Failed after token decline:", reschedErr.message);
+      }
     }
 
     res.render("schedule-done", {

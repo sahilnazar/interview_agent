@@ -293,6 +293,12 @@ export async function initDB() {
   `);
   await query(`
     DO $$ BEGIN
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS video_reminder_sent BOOLEAN DEFAULT FALSE;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await query(`
+    DO $$ BEGIN
       ALTER TABLE scheduled_interviews ADD COLUMN IF NOT EXISTS result TEXT;
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$

@@ -144,3 +144,79 @@ export async function sendRejectionEmail(email) {
     </div>`
   );
 }
+
+async function getHrRecipients() {
+  const settingRow = await query("SELECT value FROM settings WHERE key = 'hr_notification_emails' LIMIT 1");
+  const emailsSetting = settingRow.rows[0]?.value || process.env.HR_NOTIFICATION_EMAILS || "";
+  return emailsSetting.split(",").map((e) => e.trim()).filter(Boolean);
+}
+
+const BASE_URL = () => process.env.APP_URL || `http://localhost:${PORT}`;
+
+export async function sendAdminNoSlotsAlert(candidateEmail, interviewTitle) {
+  const recipients = await getHrRecipients();
+  if (!recipients.length) {
+    console.warn("[NoSlotsAlert] hr_notification_emails not configured — skipping");
+    return;
+  }
+  await sendEmail(
+    recipients.join(", "),
+    "⚠️ Action Required — No Interviewer Slots Available",
+    `<div style="font-family:sans-serif;max-width:600px;padding:24px">
+      <h2 style="color:#dc2626">No Interviewers Available</h2>
+      <p>The system attempted to schedule a live interview but could not find any available slot.</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0">
+        <tr><td style="padding:6px 12px;font-weight:600;width:140px">Candidate</td><td style="padding:6px 12px">${candidateEmail}</td></tr>
+        <tr><td style="padding:6px 12px;font-weight:600">Position</td><td style="padding:6px 12px">${interviewTitle || "Unknown"}</td></tr>
+      </table>
+      <p><strong>Action required:</strong> Please add interviewer availability or assign an interviewer manually.</p>
+      <p><a href="${BASE_URL()}/admin" style="display:inline-block;padding:10px 20px;background:#4f6ef7;color:#fff;border-radius:6px;text-decoration:none">Open Admin Panel</a></p>
+    </div>`
+  );
+}
+
+export async function sendAdminNoShowAlert({ candidateEmail, interviewerName, slotStart }) {
+  const recipients = await getHrRecipients();
+  if (!recipients.length) {
+    console.warn("[NoShowAlert] hr_notification_emails not configured — skipping");
+    return;
+  }
+  const slotStr = new Date(slotStart).toLocaleString("en-US", {
+    weekday: "short", month: "short", day: "numeric",
+    year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  await sendEmail(
+    recipients.join(", "),
+    "⚠️ Possible No-Show — Interview Not Marked Complete",
+    `<div style="font-family:sans-serif;max-width:600px;padding:24px">
+      <h2 style="color:#dc2626">Possible No-Show Detected</h2>
+      <p>An interview session has passed its scheduled end time without being marked complete.</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0">
+        <tr><td style="padding:6px 12px;font-weight:600;width:140px">Candidate</td><td style="padding:6px 12px">${candidateEmail}</td></tr>
+        <tr><td style="padding:6px 12px;font-weight:600">Interviewer</td><td style="padding:6px 12px">${interviewerName}</td></tr>
+        <tr><td style="padding:6px 12px;font-weight:600">Scheduled At</td><td style="padding:6px 12px">${slotStr}</td></tr>
+      </table>
+      <p>Please check with the interviewer and update the outcome in the admin panel.</p>
+      <p><a href="${BASE_URL()}/admin" style="display:inline-block;padding:10px 20px;background:#4f6ef7;color:#fff;border-radius:6px;text-decoration:none">Open Admin Panel</a></p>
+    </div>`
+  );
+}
+
+export async function sendCandidateVideoReminder(candidateEmail) {
+  const loginUrl = `${BASE_URL()}/login/candidate`;
+  await sendEmail(
+    candidateEmail,
+    "⏰ Reminder — Please Submit Your Video Interview",
+    `<div style="font-family:sans-serif;max-width:600px;padding:24px">
+      <h2>Don't forget your video interview!</h2>
+      <p>Hi there,</p>
+      <p>We noticed you haven't submitted your video interview yet. When you're ready, please log in and record your response.</p>
+      <p>
+        <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">
+          Submit Your Video →
+        </a>
+      </p>
+      <p style="color:#888;font-size:12px;margin-top:20px">If you have any questions, reply to this email and we'll be happy to help.</p>
+    </div>`
+  );
+}

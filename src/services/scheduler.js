@@ -14,7 +14,7 @@
 
 import crypto from "node:crypto";
 import { query } from "../config/db.js";
-import { sendEmail, sendSelectionEmail, sendNotSelectedEmail, sendHrApprovalRequestNotification } from "./email.js";
+import { sendEmail, sendSelectionEmail, sendNotSelectedEmail, sendHrApprovalRequestNotification, sendAdminNoShowAlert, sendCandidateVideoReminder } from "./email.js";
 import { callWithRetry, getGroqModel } from "../graph/helpers.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
@@ -953,6 +953,85 @@ export function startBulkOutcomeEmailWorker(intervalMs = 60000) {
 
   console.log(`[BulkMail] Worker started (interval=${intervalMs}ms)`);
   return bulkMailTimer;
+}
+
+// ─── No-show monitor ─────────────────────────────────────────────────────
+
+async function runNoShowTick() {
+  const flagged = await query(
+    `UPDATE scheduled_interviews
+     SET status = 'noshow'
+     WHERE status = 'confirmed'
+       AND slot_end < NOW()
+       AND completed_at IS NULL
+     RETURNING id, candidate_id, interviewer_id, slot_start`
+  );
+
+  for (const si of flagged.rows) {
+    try {
+      const details = await query(
+        `SELECT c.email AS candidate_email, i.name AS interviewer_name
+         FROM candidates c
+         JOIN interviewers i ON i.id = $1
+         WHERE c.thread_id = $2`,
+        [si.interviewer_id, si.candidate_id]
+      );
+      if (details.rows.length) {
+        await sendAdminNoShowAlert({
+          candidateEmail: details.rows[0].candidate_email,
+          interviewerName: details.rows[0].interviewer_name,
+          slotStart: si.slot_start,
+          scheduledId: si.id,
+        });
+        console.log(`[NoShowMonitor] Flagged and alerted: scheduled_id=${si.id}`);
+      }
+    } catch (err) {
+      console.error(`[NoShowMonitor] Alert failed for ${si.id}:`, err.message);
+    }
+  }
+}
+
+export function startNoShowMonitor(intervalMs = 3_600_000) {
+  runNoShowTick().catch((err) => console.error("[NoShowMonitor] Initial tick failed:", err.message));
+  const timer = setInterval(() => {
+    runNoShowTick().catch((err) => console.error("[NoShowMonitor] Tick failed:", err.message));
+  }, intervalMs);
+  console.log(`[NoShowMonitor] Started (interval=${intervalMs}ms)`);
+  return timer;
+}
+
+// ─── Video reminder worker ────────────────────────────────────────────────
+
+async function runVideoReminderTick() {
+  const pending = await query(
+    `SELECT thread_id, email
+     FROM candidates
+     WHERE status = 'AwaitingVideo'
+       AND video_reminder_sent = FALSE
+       AND created_at < NOW() - INTERVAL '48 hours'`
+  );
+
+  for (const candidate of pending.rows) {
+    try {
+      await sendCandidateVideoReminder(candidate.email);
+      await query(
+        "UPDATE candidates SET video_reminder_sent = TRUE WHERE thread_id = $1",
+        [candidate.thread_id]
+      );
+      console.log(`[VideoReminder] Sent to ${candidate.email}`);
+    } catch (err) {
+      console.error(`[VideoReminder] Failed for ${candidate.thread_id}:`, err.message);
+    }
+  }
+}
+
+export function startVideoReminderWorker(intervalMs = 3_600_000) {
+  runVideoReminderTick().catch((err) => console.error("[VideoReminder] Initial tick failed:", err.message));
+  const timer = setInterval(() => {
+    runVideoReminderTick().catch((err) => console.error("[VideoReminder] Tick failed:", err.message));
+  }, intervalMs);
+  console.log(`[VideoReminder] Started (interval=${intervalMs}ms)`);
+  return timer;
 }
 
 // ─── Email helpers ────────────────────────────────────────────────────────
