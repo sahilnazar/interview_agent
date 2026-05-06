@@ -7,6 +7,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "mcp:resume": "node src/services/mcp-resume-server.js",
+    "mcp:candidate": "node src/services/mcp-candidate-server.js",
+    "mcp:scheduling": "node src/services/mcp-scheduling-server.js",
+    "mcp:hr": "node src/services/mcp-hr-server.js",
     "mcp:node-tools": "node src/services/mcp-node-tools-server.js"
   },
   "dependencies": {
