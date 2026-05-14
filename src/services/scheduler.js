@@ -19,7 +19,7 @@ import { callWithRetry, getGroqModel } from "../graph/helpers.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { PORT } from "../config/env.js";
 import { createCalendarEventForScheduledInterview } from "./calendar-mcp.js";
-import { isMCPAvailable, scheduleCandidateViaMCP, autoAssignAndConfirmViaMCP } from "./mcp.js";
+import { dispatchWithPrompt } from "./agent-dispatcher.js";
 
 const BASE_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 const AUTO_SCHEDULE_INTERVAL_MS = parseInt(process.env.AUTO_SCHEDULE_INTERVAL_MS || "180000", 10);
@@ -505,21 +505,26 @@ ${slotList}`;
  * 3. Email candidate with slot choices
  */
 export async function scheduleCandidate(candidateId, interviewId) {
-  if (isMCPAvailable()) {
-    try {
-      const mcpResult = await scheduleCandidateViaMCP({ candidateId, interviewId });
-      if (typeof mcpResult?.scheduled === "boolean") {
-        return {
-          scheduled: mcpResult.scheduled,
-          slotCount: mcpResult.slotCount,
-          reason: mcpResult.reason,
-          alreadyScheduled: mcpResult.alreadyScheduled,
-          scheduledId: mcpResult.scheduledId,
-        };
-      }
-    } catch (err) {
-      console.warn(`MCP schedule_candidate failed for ${candidateId}, falling back local: ${err.message}`);
+  try {
+    const dispatched = await dispatchWithPrompt(
+      `Find the next available interview slot for candidate ${candidateId} ` +
+      `for interview position ${interviewId}. Book the best slot and email the ` +
+      `candidate with their options to confirm.`,
+      { candidateId, interviewId },
+      { allowTools: ["schedule_candidate"] }
+    );
+    if (typeof dispatched.result?.scheduled === "boolean") {
+      console.log(`[Scheduler] AgentDispatcher selected "${dispatched.toolName}" — scheduled: ${dispatched.result.scheduled}`);
+      return {
+        scheduled: dispatched.result.scheduled,
+        slotCount: dispatched.result.slotCount,
+        reason: dispatched.result.reason,
+        alreadyScheduled: dispatched.result.alreadyScheduled,
+        scheduledId: dispatched.result.scheduledId,
+      };
     }
+  } catch (err) {
+    console.warn(`[Scheduler] AgentDispatcher failed for ${candidateId}, running local scheduling: ${err.message}`);
   }
 
   const candidateResult = await query(
@@ -590,24 +595,29 @@ export async function scheduleCandidate(candidateId, interviewId) {
  * - candidate + interviewer get confirmation emails with meet link and slot
  */
 export async function autoAssignAndConfirmCandidate(candidateId, interviewId) {
-  if (isMCPAvailable()) {
-    try {
-      const mcpResult = await autoAssignAndConfirmViaMCP({ candidateId, interviewId });
-      if (typeof mcpResult?.scheduled === "boolean") {
-        return {
-          scheduled: mcpResult.scheduled,
-          reason: mcpResult.reason,
-          alreadyScheduled: mcpResult.alreadyScheduled,
-          scheduledId: mcpResult.scheduledId,
-          interviewerId: mcpResult.interviewerId,
-          slotStart: mcpResult.slotStart,
-          slotEnd: mcpResult.slotEnd,
-          requestId: mcpResult.requestId,
-        };
-      }
-    } catch (err) {
-      console.warn(`MCP auto_assign_and_confirm_candidate failed for ${candidateId}, falling back local: ${err.message}`);
+  try {
+    const dispatched = await dispatchWithPrompt(
+      `Automatically assign the best available interviewer for candidate ${candidateId} ` +
+      `and confirm the interview booking. Apply the HR review gate if no suitable interviewer ` +
+      `meets the AI quality threshold. Interview position: ${interviewId}.`,
+      { candidateId, interviewId },
+      { allowTools: ["auto_assign_and_confirm_candidate"] }
+    );
+    if (dispatched.result && typeof dispatched.result?.scheduled === "boolean") {
+      console.log(`[autoAssign] AgentDispatcher selected "${dispatched.toolName}" — scheduled: ${dispatched.result.scheduled}`);
+      return {
+        scheduled: dispatched.result.scheduled,
+        reason: dispatched.result.reason,
+        alreadyScheduled: dispatched.result.alreadyScheduled,
+        scheduledId: dispatched.result.scheduledId,
+        interviewerId: dispatched.result.interviewerId,
+        slotStart: dispatched.result.slotStart,
+        slotEnd: dispatched.result.slotEnd,
+        requestId: dispatched.result.requestId,
+      };
     }
+  } catch (err) {
+    console.warn(`[autoAssign] AgentDispatcher failed for ${candidateId}, running local: ${err.message}`);
   }
 
   const existing = await query(

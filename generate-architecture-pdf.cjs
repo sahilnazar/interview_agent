@@ -1,431 +1,1146 @@
+"use strict";
 const puppeteer = require("puppeteer");
 const path = require("path");
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1587" height="1123" viewBox="0 0 1580 1060"
-     font-family="Arial,Helvetica,sans-serif">
-<defs>
-  <marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-    <polygon points="0 0,10 3.5,0 7" fill="#475569"/>
-  </marker>
-  <marker id="ahr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-    <polygon points="0 0,10 3.5,0 7" fill="#ef4444"/>
-  </marker>
-  <marker id="ahg" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-    <polygon points="0 0,10 3.5,0 7" fill="#10b981"/>
-  </marker>
-</defs>
-
-<!-- ═══ TITLE BAR ═══ -->
-<rect x="0" y="0" width="1580" height="58" fill="#0f172a"/>
-<text x="790" y="20" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="700" letter-spacing="3">SYSTEM ARCHITECTURE · TRENHIRE INTERVIEW ASSISTANT</text>
-<text x="790" y="44" text-anchor="middle" fill="white" font-size="20" font-weight="800">CV Upload → Resume Analysis → MCP Agents → Calendar Event</text>
-
-<!-- ═══ ZONE BACKGROUNDS ═══ -->
-<!-- Entry Points Zone -->
-<rect x="10" y="62" width="222" height="988" rx="10" fill="#f0f4ff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="7,4"/>
-<text x="121" y="83" text-anchor="middle" fill="#6366f1" font-size="10" font-weight="800" letter-spacing="2">entry points</text>
-
-<!-- Backend Zone -->
-<rect x="244" y="62" width="522" height="988" rx="10" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5" stroke-dasharray="7,4"/>
-<text x="505" y="83" text-anchor="middle" fill="#10b981" font-size="10" font-weight="800" letter-spacing="2">backend</text>
-
-<!-- MCP Servers Zone -->
-<rect x="778" y="62" width="278" height="988" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="7,4"/>
-<text x="917" y="83" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="800" letter-spacing="2">MCP servers</text>
-
-<!-- AI / External Zone -->
-<rect x="1068" y="62" width="504" height="988" rx="10" fill="#fdf2f8" stroke="#ec4899" stroke-width="1.5" stroke-dasharray="7,4"/>
-<text x="1320" y="83" text-anchor="middle" fill="#ec4899" font-size="10" font-weight="800" letter-spacing="2">AI services &amp; external</text>
-
-<!-- LangGraph Sub-Zone inside Backend -->
-<rect x="452" y="100" width="308" height="584" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3"/>
-<text x="606" y="120" text-anchor="middle" fill="#4f46e5" font-size="9" font-weight="800" letter-spacing="1.5">🔄  LANGGRAPH WORKFLOW ENGINE</text>
-
-<!-- Data Layer Sub-Zone inside Backend -->
-<rect x="254" y="792" width="500" height="180" rx="8" fill="#ecfeff" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="5,3"/>
-<text x="504" y="810" text-anchor="middle" fill="#0284c7" font-size="9" font-weight="800" letter-spacing="1.5">🗄  DATA LAYER</text>
-
-<!-- ═══ ENTRY COMPONENTS ═══ -->
-<!-- 1. CV Web Upload -->
-<rect x="18" y="110" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
-<text x="121" y="135" text-anchor="middle" font-size="18">📄</text>
-<text x="121" y="155" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">CV Web Upload</text>
-<text x="121" y="170" text-anchor="middle" fill="#64748b" font-size="9">Drag-drop PDF/DOCX portal</text>
-
-<!-- 2. Email Inbox -->
-<rect x="18" y="230" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
-<text x="121" y="255" text-anchor="middle" font-size="18">📧</text>
-<text x="121" y="275" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Email Inbox (IMAP)</text>
-<text x="121" y="290" text-anchor="middle" fill="#64748b" font-size="9">Auto-ingests resume attachments</text>
-
-<!-- 3. Admin Dashboard -->
-<rect x="18" y="350" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
-<text x="121" y="375" text-anchor="middle" font-size="18">👑</text>
-<text x="121" y="395" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Admin Dashboard</text>
-<text x="121" y="410" text-anchor="middle" fill="#64748b" font-size="9">Manual trigger / settings</text>
-
-<!-- 4. Candidate Video -->
-<rect x="18" y="470" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
-<text x="121" y="495" text-anchor="middle" font-size="18">🎥</text>
-<text x="121" y="515" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Candidate Video Upload</text>
-<text x="121" y="530" text-anchor="middle" fill="#64748b" font-size="9">Async video submission</text>
-
-<!-- 5. Interviewer Portal -->
-<rect x="18" y="590" width="206" height="72" rx="8" fill="white" stroke="#a5b4fc" stroke-width="1.5"/>
-<text x="121" y="615" text-anchor="middle" font-size="18">🧑‍💼</text>
-<text x="121" y="635" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Interviewer Portal</text>
-<text x="121" y="650" text-anchor="middle" fill="#64748b" font-size="9">Calendar &amp; slot management</text>
-
-<!-- ═══ APP LAYER COMPONENTS ═══ -->
-<!-- Express.js Server -->
-<rect x="254" y="110" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
-<text x="347" y="135" text-anchor="middle" font-size="18">⚙️</text>
-<text x="347" y="155" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Express.js Server</text>
-<text x="347" y="170" text-anchor="middle" fill="#64748b" font-size="9">Routes / Auth / Sessions</text>
-
-<!-- Email Ingest Worker -->
-<rect x="254" y="230" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
-<text x="347" y="255" text-anchor="middle" font-size="18">📥</text>
-<text x="347" y="275" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Email Ingest Worker</text>
-<text x="347" y="290" text-anchor="middle" fill="#64748b" font-size="9">imapflow · pdf-parse · mammoth</text>
-
-<!-- File Watcher -->
-<rect x="254" y="350" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
-<text x="347" y="375" text-anchor="middle" font-size="18">👁️</text>
-<text x="347" y="395" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">File Watcher</text>
-<text x="347" y="410" text-anchor="middle" fill="#64748b" font-size="9">chokidar · cvs/ folder</text>
-
-<!-- Video Upload Handler -->
-<rect x="254" y="470" width="186" height="72" rx="8" fill="white" stroke="#6ee7b7" stroke-width="1.5"/>
-<text x="347" y="495" text-anchor="middle" font-size="18">🎬</text>
-<text x="347" y="515" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Video Upload Handler</text>
-<text x="347" y="530" text-anchor="middle" fill="#64748b" font-size="9">multer · /upload/:threadId</text>
-
-<!-- Background Workers -->
-<rect x="254" y="702" width="498" height="68" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
-<text x="503" y="726" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="700" letter-spacing="1">⏱  BACKGROUND WORKERS</text>
-<text x="503" y="744" text-anchor="middle" fill="#e2e8f0" font-size="10">auto-schedule · email-ingest poller · video reminder · no-show monitor · bulk outcome emailer</text>
-<text x="503" y="759" text-anchor="middle" fill="#64748b" font-size="9">scheduler.js · email-ingest.js  (setInterval loops)</text>
-
-<!-- PostgreSQL Box -->
-<rect x="264" y="820" width="480" height="136" rx="8" fill="white" stroke="#67e8f9" stroke-width="1.5"/>
-<text x="504" y="848" text-anchor="middle" font-size="20">🗄️</text>
-<text x="504" y="870" text-anchor="middle" fill="#1e293b" font-size="12" font-weight="700">PostgreSQL + pgvector</text>
-<text x="504" y="888" text-anchor="middle" fill="#64748b" font-size="9">candidates · interviews · scheduled_interviews · interviewers · admins · sessions · jd_chunks</text>
-<text x="504" y="904" text-anchor="middle" fill="#0284c7" font-size="9" font-weight="600">vector(768) embeddings · cosine similarity (&lt;=&gt;) · connect-pg-simple checkpointer</text>
-<text x="504" y="920" text-anchor="middle" fill="#64748b" font-size="9">PostgresSaver (LangGraph checkpoint) · pg pool (8 connections)</text>
-<text x="504" y="938" text-anchor="middle" fill="#64748b" font-size="9">docker: pgvector/pgvector:pg16 · persistent volume</text>
-
-<!-- ═══ LANGGRAPH NODES ═══ -->
-<!-- Node 1: check_domain_duplicate -->
-<rect x="462" y="136" width="286" height="68" rx="7" fill="white" stroke="#818cf8" stroke-width="1.5"/>
-<text x="605" y="158" text-anchor="middle" font-size="14">🔍</text>
-<text x="605" y="176" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">check_domain_and_duplicate</text>
-<text x="605" y="191" text-anchor="middle" fill="#64748b" font-size="9">SHA256 hash dedup · domain regex filter · INSERT candidate</text>
-
-<!-- Arrow: checkDomain → analyzeResume -->
-<line x1="605" y1="204" x2="605" y2="248" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-
-<!-- Node 2: analyze_resume -->
-<rect x="462" y="248" width="286" height="68" rx="7" fill="white" stroke="#818cf8" stroke-width="1.5"/>
-<text x="605" y="270" text-anchor="middle" font-size="14">📊</text>
-<text x="605" y="288" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">analyze_resume</text>
-<text x="605" y="303" text-anchor="middle" fill="#64748b" font-size="9">extract text · RAG embed · pgvector search · LLM score</text>
-
-<!-- Arrow: analyzeResume → threshold gate -->
-<line x1="605" y1="316" x2="605" y2="352" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-
-<!-- Threshold Gate Diamond -->
-<polygon points="605,352 643,380 605,408 567,380" fill="white" stroke="#f59e0b" stroke-width="2"/>
-<text x="605" y="377" text-anchor="middle" fill="#92400e" font-size="9" font-weight="800">score ≥ threshold?</text>
-<text x="605" y="392" text-anchor="middle" fill="#92400e" font-size="8">pass_threshold (0–100)</text>
-
-<!-- Arrow gate→sendInvite (YES/left) -->
-<path d="M 573,380 L 530,380 L 530,432" fill="none" stroke="#10b981" stroke-width="1.5" marker-end="url(#ahg)"/>
-<text x="548" y="374" text-anchor="middle" fill="#065f46" font-size="8" font-weight="700">YES ✓</text>
-
-<!-- Arrow gate→rejectCandidate (NO/right) -->
-<path d="M 637,380 L 678,380 L 678,432" fill="none" stroke="#ef4444" stroke-width="1.5" marker-end="url(#ahr)"/>
-<text x="660" y="374" text-anchor="middle" fill="#991b1b" font-size="8" font-weight="700">NO ✗</text>
-
-<!-- Node 3: send_invite -->
-<rect x="462" y="432" width="136" height="68" rx="7" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5"/>
-<text x="530" y="454" text-anchor="middle" font-size="14">✉️</text>
-<text x="530" y="472" text-anchor="middle" fill="#065f46" font-size="10" font-weight="700">send_invite</text>
-<text x="530" y="487" text-anchor="middle" fill="#064e3b" font-size="8">video link email</text>
-
-<!-- Node 4: reject_candidate -->
-<rect x="610" y="432" width="136" height="68" rx="7" fill="#fff1f2" stroke="#ef4444" stroke-width="1.5"/>
-<text x="678" y="454" text-anchor="middle" font-size="14">❌</text>
-<text x="678" y="472" text-anchor="middle" fill="#991b1b" font-size="10" font-weight="700">reject_candidate</text>
-<text x="678" y="487" text-anchor="middle" fill="#7f1d1d" font-size="8">rejection email</text>
-
-<!-- ═══ MCP #1 SUB-ZONE ═══ -->
-<rect x="786" y="100" width="264" height="368" rx="8" fill="#fff8e1" stroke="#f59e0b" stroke-width="1.5"/>
-<rect x="792" y="112" width="252" height="56" rx="6" fill="#f59e0b" fill-opacity="0.15" stroke="#f59e0b" stroke-width="1"/>
-<text x="918" y="132" text-anchor="middle" fill="#92400e" font-size="8" font-weight="800" letter-spacing="1">🔧  MCP SERVER #1 — LOCAL NODE TOOLS</text>
-<text x="918" y="148" text-anchor="middle" fill="#78350f" font-size="9" font-weight="700">Transport: stdio (child_process spawn)</text>
-<text x="918" y="162" text-anchor="middle" fill="#64748b" font-size="8">mcp-node-tools-server.js · StdioClientTransport</text>
-
-<!-- MCP#1 Tool Rows -->
-<rect x="792" y="178" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
-<text x="805" y="196" fill="#1e293b" font-size="10" font-weight="700">🔬  analyze_resume_only</text>
-<text x="805" y="212" fill="#64748b" font-size="8">PDF extract · embed · pgvector search · Groq score</text>
-
-<rect x="792" y="230" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
-<text x="805" y="248" fill="#1e293b" font-size="10" font-weight="700">📨  send_invite</text>
-<text x="805" y="264" fill="#64748b" font-size="8">Nodemailer SMTP · video upload link</text>
-
-<rect x="792" y="282" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
-<text x="805" y="300" fill="#1e293b" font-size="10" font-weight="700">📅  schedule_candidate</text>
-<text x="805" y="316" fill="#64748b" font-size="8">slot finder · Groq-ranked options · email candidate</text>
-
-<rect x="792" y="334" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
-<text x="805" y="352" fill="#1e293b" font-size="10" font-weight="700">✅  auto_assign_and_confirm</text>
-<text x="805" y="368" fill="#64748b" font-size="8">pgvector match · Groq rank · HR gate if &lt;40%</text>
-
-<rect x="792" y="386" width="252" height="44" rx="5" fill="white" stroke="#fcd34d" stroke-width="1"/>
-<text x="805" y="404" fill="#1e293b" font-size="10" font-weight="700">👥  HR Assignment Tools</text>
-<text x="805" y="420" fill="#64748b" font-size="8">list · approve · reject hr_assignment_requests</text>
-
-<!-- ═══ MCP #2 SUB-ZONE ═══ -->
-<rect x="786" y="488" width="264" height="162" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5"/>
-<rect x="792" y="500" width="252" height="56" rx="6" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="1"/>
-<text x="918" y="520" text-anchor="middle" fill="#065f46" font-size="8" font-weight="800" letter-spacing="1">🗓️  MCP SERVER #2 — CALENDAR</text>
-<text x="918" y="536" text-anchor="middle" fill="#047857" font-size="9" font-weight="700">Transport: StreamableHTTP (HTTPS)</text>
-<text x="918" y="550" text-anchor="middle" fill="#64748b" font-size="8">calendar-mcp.js · Bearer token auth · per-event connect</text>
-
-<rect x="792" y="564" width="252" height="44" rx="5" fill="white" stroke="#6ee7b7" stroke-width="1"/>
-<text x="805" y="582" fill="#1e293b" font-size="10" font-weight="700">🔵  create_event</text>
-<text x="805" y="598" fill="#64748b" font-size="8">summary · start/end · attendees · meet_link</text>
-
-<!-- ═══ GMAIL SMTP BOX (in MCP zone) ═══ -->
-<rect x="786" y="668" width="264" height="72" rx="8" fill="#fff1f2" stroke="#fca5a5" stroke-width="1.5"/>
-<text x="918" y="692" text-anchor="middle" font-size="18">📬</text>
-<text x="918" y="712" text-anchor="middle" fill="#9f1239" font-size="11" font-weight="700">Gmail SMTP (Nodemailer)</text>
-<text x="918" y="727" text-anchor="middle" fill="#be123c" font-size="8">invite · reject · confirm · reminder emails</text>
-
-<!-- ═══ AI SERVICE COMPONENTS ═══ -->
-<!-- Groq LLM -->
-<rect x="1078" y="110" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
-<text x="1184" y="135" text-anchor="middle" font-size="18">⚡</text>
-<text x="1184" y="155" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Groq LLM</text>
-<text x="1184" y="170" text-anchor="middle" fill="#64748b" font-size="9">llama-3.3-70b · resume scoring · IR matching</text>
-
-<!-- Ollama Embeddings -->
-<rect x="1078" y="230" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
-<text x="1184" y="255" text-anchor="middle" font-size="18">🦙</text>
-<text x="1184" y="275" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Ollama Embeddings</text>
-<text x="1184" y="290" text-anchor="middle" fill="#64748b" font-size="9">nomic-embed-text · 768-dim · localhost:11434</text>
-
-<!-- Groq Whisper -->
-<rect x="1078" y="350" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
-<text x="1184" y="375" text-anchor="middle" font-size="18">🎤</text>
-<text x="1184" y="395" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Groq Whisper</text>
-<text x="1184" y="410" text-anchor="middle" fill="#64748b" font-size="9">whisper-large-v3 · audio → transcript</text>
-
-<!-- Gemini 2.5 Flash -->
-<rect x="1078" y="470" width="212" height="72" rx="8" fill="white" stroke="#f9a8d4" stroke-width="1.5"/>
-<text x="1184" y="495" text-anchor="middle" font-size="18">🎬</text>
-<text x="1184" y="515" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Gemini 2.5 Flash</text>
-<text x="1184" y="530" text-anchor="middle" fill="#64748b" font-size="9">File API · englishScore · confidence · skills[]</text>
-
-<!-- Google Calendar MCP -->
-<rect x="1078" y="622" width="212" height="72" rx="8" fill="white" stroke="#86efac" stroke-width="1.5"/>
-<text x="1184" y="647" text-anchor="middle" font-size="18">🔵</text>
-<text x="1184" y="667" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Google Calendar MCP</text>
-<text x="1184" y="682" text-anchor="middle" fill="#64748b" font-size="9">change URL in admin → zero code change</text>
-
-<!-- Yahoo Calendar MCP -->
-<rect x="1322" y="622" width="218" height="72" rx="8" fill="white" stroke="#86efac" stroke-width="1.5"/>
-<text x="1431" y="647" text-anchor="middle" font-size="18">🟣</text>
-<text x="1431" y="667" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="700">Yahoo Calendar MCP</text>
-<text x="1431" y="682" text-anchor="middle" fill="#64748b" font-size="9">or any MCP-compliant calendar</text>
-
-
-<!-- ═══════════════════════════════════════════════
-     ARROWS + PROTOCOL LABELS + STEP CIRCLES
-═══════════════════════════════════════════════ -->
-
-<!-- ① CV Web Upload → Express.js  (POST /upload) -->
-<path d="M 224,146 L 254,146" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="192" y="100" width="100" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
-<text x="242" y="112" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">POST /upload</text>
-<circle cx="224" cy="146" r="9" fill="#ea580c"/>
-<text x="224" y="150" text-anchor="middle" fill="white" font-size="9" font-weight="800">1</text>
-
-<!-- ② Email IMAP → Email Ingest (IMAP FETCH) -->
-<path d="M 224,266 L 254,266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="192" y="250" width="90" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
-<text x="237" y="262" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">IMAP FETCH</text>
-<circle cx="224" cy="266" r="9" fill="#ea580c"/>
-<text x="224" y="270" text-anchor="middle" fill="white" font-size="9" font-weight="800">2</text>
-
-<!-- ③ Admin → Express.js (bent up, JSON POST) -->
-<path d="M 224,386 L 238,386 L 238,146 L 254,146" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah)"/>
-<rect x="182" y="268" width="112" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
-<text x="238" y="280" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">JSON POST /admin/trigger</text>
-<circle cx="224" cy="386" r="9" fill="#ea580c"/>
-<text x="224" y="390" text-anchor="middle" fill="white" font-size="9" font-weight="800">3</text>
-
-<!-- ④ Candidate Video → Video Handler (multipart form-data) -->
-<path d="M 224,506 L 254,506" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="178" y="490" width="108" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
-<text x="232" y="502" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">POST multipart/form-data</text>
-<circle cx="224" cy="506" r="9" fill="#ea580c"/>
-<text x="224" y="510" text-anchor="middle" fill="white" font-size="9" font-weight="800">4</text>
-
-<!-- Express.js → LangGraph (short connector) -->
-<path d="M 440,150 L 452,165" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah)"/>
-<!-- Email Ingest → LangGraph (short connector) -->
-<path d="M 440,270 L 452,282" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah)"/>
-<!-- File Watcher → LangGraph (short connector) -->
-<path d="M 440,390 L 452,350" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah)"/>
-
-<!-- ⑤ analyze_resume → MCP #1 analyze_resume_only  (JSON-RPC stdio) -->
-<path d="M 748,282 L 770,282 L 770,200 L 792,200" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#ah)"/>
-<rect x="730" y="226" width="100" height="16" rx="3" fill="white" stroke="#f59e0b" stroke-width="0.8"/>
-<text x="780" y="238" text-anchor="middle" fill="#92400e" font-size="8" font-weight="700">JSON-RPC stdio</text>
-<circle cx="759" cy="282" r="9" fill="#ea580c"/>
-<text x="759" y="286" text-anchor="middle" fill="white" font-size="9" font-weight="800">5</text>
-
-<!-- ⑥ MCP #1 → Groq LLM (HTTPS API) -->
-<path d="M 1044,200 L 1060,200 L 1060,146 L 1078,146" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="1014" y="158" width="82" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
-<text x="1055" y="170" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">HTTPS API</text>
-<circle cx="1044" cy="200" r="9" fill="#ea580c"/>
-<text x="1044" y="204" text-anchor="middle" fill="white" font-size="9" font-weight="800">6</text>
-
-<!-- ⑦ MCP #1 → Ollama (REST POST /api/embeddings) -->
-<path d="M 1044,252 L 1060,252 L 1060,266 L 1078,266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="998" y="232" width="148" height="16" rx="3" fill="white" stroke="#94a3b8" stroke-width="0.8"/>
-<text x="1072" y="244" text-anchor="middle" fill="#475569" font-size="8" font-weight="600">REST POST /api/embeddings</text>
-<circle cx="1044" cy="252" r="9" fill="#ea580c"/>
-<text x="1044" y="256" text-anchor="middle" fill="white" font-size="9" font-weight="800">7</text>
-
-<!-- ⑧ LangGraph nodes → PostgreSQL (SQL INSERT/SELECT) -->
-<path d="M 748,282 L 770,282 L 770,778 L 504,778 L 504,820" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah)"/>
-<rect x="590" y="762" width="112" height="16" rx="3" fill="white" stroke="#0ea5e9" stroke-width="0.8"/>
-<text x="646" y="774" text-anchor="middle" fill="#0284c7" font-size="8" font-weight="600">SQL INSERT / SELECT</text>
-<circle cx="770" cy="530" r="9" fill="#ea580c"/>
-<text x="770" y="534" text-anchor="middle" fill="white" font-size="9" font-weight="800">8</text>
-
-<!-- ⑨ MCP #1 pgvector → PostgreSQL (cosine search) -->
-<path d="M 918,468 L 918,784 L 520,784 L 520,820" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah)"/>
-<rect x="652" y="768" width="130" height="16" rx="3" fill="white" stroke="#0ea5e9" stroke-width="0.8"/>
-<text x="717" y="780" text-anchor="middle" fill="#0284c7" font-size="8" font-weight="600">pgvector cosine search (&lt;=&gt;)</text>
-<circle cx="918" cy="620" r="9" fill="#ea580c"/>
-<text x="918" y="624" text-anchor="middle" fill="white" font-size="9" font-weight="800">9</text>
-
-<!-- ⑩ sendInvite → MCP #1 send_invite  (JSON-RPC stdio) -->
-<path d="M 598,466 L 598,510 L 770,510 L 770,252 L 792,252" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#ah)"/>
-<rect x="656" y="494" width="100" height="16" rx="3" fill="white" stroke="#f59e0b" stroke-width="0.8"/>
-<text x="706" y="506" text-anchor="middle" fill="#92400e" font-size="8" font-weight="700">JSON-RPC stdio</text>
-<circle cx="635" cy="510" r="9" fill="#ea580c"/>
-<text x="635" y="514" text-anchor="middle" fill="white" font-size="9" font-weight="800">10</text>
-
-<!-- ⑪ MCP #1 send_invite → Gmail SMTP (in-process / SMTP) -->
-<path d="M 792,252 L 782,252 L 782,704 L 786,704" fill="none" stroke="#ef4444" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="726" y="474" width="118" height="16" rx="3" fill="white" stroke="#ef4444" stroke-width="0.8"/>
-<text x="785" y="486" text-anchor="middle" fill="#b91c1c" font-size="8" font-weight="600">SMTP (nodemailer)</text>
-<circle cx="782" cy="474" r="9" fill="#ea580c"/>
-<text x="782" y="478" text-anchor="middle" fill="white" font-size="9" font-weight="800">11</text>
-
-<!-- ⑫ Video Handler → Groq Whisper (audio transcription) -->
-<path d="M 440,510 L 756,510 L 756,930 L 1064,930 L 1064,386 L 1078,386" fill="none" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="836" y="918" width="138" height="16" rx="3" fill="white" stroke="#8b5cf6" stroke-width="0.8"/>
-<text x="905" y="930" text-anchor="middle" fill="#7c3aed" font-size="8" font-weight="600">Whisper API (audio → text)</text>
-<circle cx="756" cy="710" r="9" fill="#ea580c"/>
-<text x="756" y="714" text-anchor="middle" fill="white" font-size="9" font-weight="800">12</text>
-
-<!-- ⑬ Video Handler → Gemini 2.5 Flash (video analysis) -->
-<path d="M 440,530 L 758,530 L 758,948 L 1066,948 L 1066,506 L 1078,506" fill="none" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#ah)"/>
-<rect x="836" y="936" width="132" height="16" rx="3" fill="white" stroke="#8b5cf6" stroke-width="0.8"/>
-<text x="902" y="948" text-anchor="middle" fill="#7c3aed" font-size="8" font-weight="600">Gemini File API (video)</text>
-<circle cx="758" cy="740" r="9" fill="#ea580c"/>
-<text x="758" y="744" text-anchor="middle" fill="white" font-size="9" font-weight="800">13</text>
-
-<!-- ⑭ Workers → MCP #2 Calendar  (StreamableHTTP) -->
-<path d="M 754,724 L 770,724 L 770,586 L 792,586" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
-<rect x="720" y="644" width="128" height="16" rx="3" fill="white" stroke="#10b981" stroke-width="0.8"/>
-<text x="784" y="656" text-anchor="middle" fill="#065f46" font-size="8" font-weight="700">StreamableHTTP (HTTPS)</text>
-<circle cx="762" cy="644" r="9" fill="#ea580c"/>
-<text x="762" y="648" text-anchor="middle" fill="white" font-size="9" font-weight="800">14</text>
-
-<!-- ⑮ MCP #2 → Google Calendar (MCP create_event) -->
-<path d="M 1044,586 L 1060,586 L 1060,658 L 1078,658" fill="none" stroke="#10b981" stroke-width="1.5" marker-end="url(#ahg)"/>
-<rect x="1008" y="604" width="106" height="16" rx="3" fill="white" stroke="#10b981" stroke-width="0.8"/>
-<text x="1061" y="616" text-anchor="middle" fill="#065f46" font-size="8" font-weight="700">MCP create_event</text>
-<circle cx="1044" cy="586" r="9" fill="#ea580c"/>
-<text x="1044" y="590" text-anchor="middle" fill="white" font-size="9" font-weight="800">15</text>
-
-<!-- MCP #2 → Yahoo Calendar (swap URL only) -->
-<path d="M 1044,604 L 1300,604 L 1300,658 L 1322,658" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ahg)"/>
-<rect x="1130" y="588" width="106" height="16" rx="3" fill="white" stroke="#10b981" stroke-width="0.8"/>
-<text x="1183" y="600" text-anchor="middle" fill="#065f46" font-size="8" font-weight="600">swap URL → zero code change</text>
-
-<!-- ═══ LEGEND ═══ -->
-<rect x="18" y="750" width="206" height="200" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
-<text x="121" y="772" text-anchor="middle" fill="#475569" font-size="9" font-weight="800" letter-spacing="1">LEGEND</text>
-<line x1="30" y1="784" x2="70" y2="784" stroke="#f59e0b" stroke-width="2"/>
-<text x="80" y="788" fill="#64748b" font-size="8">JSON-RPC stdio (MCP #1)</text>
-<line x1="30" y1="802" x2="70" y2="802" stroke="#10b981" stroke-width="2"/>
-<text x="80" y="806" fill="#64748b" font-size="8">StreamableHTTP (MCP #2)</text>
-<line x1="30" y1="820" x2="70" y2="820" stroke="#8b5cf6" stroke-width="2"/>
-<text x="80" y="824" fill="#64748b" font-size="8">Direct HTTPS API call</text>
-<line x1="30" y1="838" x2="70" y2="838" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="4,2"/>
-<text x="80" y="842" fill="#64748b" font-size="8">SQL / pgvector query</text>
-<line x1="30" y1="856" x2="70" y2="856" stroke="#ef4444" stroke-width="2"/>
-<text x="80" y="860" fill="#64748b" font-size="8">SMTP email send</text>
-<line x1="30" y1="874" x2="70" y2="874" stroke="#475569" stroke-width="1.5" stroke-dasharray="3,2"/>
-<text x="80" y="878" fill="#64748b" font-size="8">Internal invoke / trigger</text>
-<circle cx="42" cy="892" r="7" fill="#ea580c"/>
-<text x="42" y="896" text-anchor="middle" fill="white" font-size="7" font-weight="800">N</text>
-<text x="80" y="896" fill="#64748b" font-size="8">Numbered step in flow</text>
-<text x="121" y="930" text-anchor="middle" fill="#94a3b8" font-size="8">All MCP calls use client.callTool()</text>
-<text x="121" y="944" text-anchor="middle" fill="#94a3b8" font-size="8">Graceful fallback: if MCP fails,</text>
-<text x="121" y="958" text-anchor="middle" fill="#94a3b8" font-size="8">logic runs in-process directly</text>
-
-<!-- ═══ FOOTER ═══ -->
-<rect x="0" y="1022" width="1580" height="38" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
-<text x="20" y="1046" fill="#94a3b8" font-size="9">TrenHire Interview Assistant · Full Architecture · CV-to-Calendar End-to-End Flow</text>
-<text x="1560" y="1046" text-anchor="end" fill="#94a3b8" font-size="9">LangGraph.js · MCP SDK · PostgreSQL + pgvector · Groq · Gemini · Ollama</text>
-
-</svg>`;
-
-const html = `<!DOCTYPE html>
-<html>
+const OUT = path.join(__dirname, "TrenHire-Technical-Architecture.pdf");
+
+// ─── colour tokens ────────────────────────────────────────────────────────────
+const C = {
+  http:   { stroke: "#3B82F6", badge: "#EFF6FF", text: "#1D4ED8" },
+  mcp:    { stroke: "#F59E0B", badge: "#FFFBEB", text: "#B45309" },
+  sql:    { stroke: "#8B5CF6", badge: "#F5F3FF", text: "#6D28D9" },
+  https:  { stroke: "#10B981", badge: "#ECFDF5", text: "#065F46" },
+  smtp:   { stroke: "#EF4444", badge: "#FEF2F2", text: "#991B1B" },
+  mem:    { stroke: "#64748B", badge: "#F8FAFC", text: "#334155" },
+  grpc:   { stroke: "#EC4899", badge: "#FDF2F8", text: "#9D174D" },
+};
+
+// ─── reusable SVG building blocks ─────────────────────────────────────────────
+
+function shadow() {
+  return `<defs>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#00000018"/>
+    </filter>
+    <marker id="ah"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#64748B"/></marker>
+    <marker id="ahB" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#3B82F6"/></marker>
+    <marker id="ahO" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#F59E0B"/></marker>
+    <marker id="ahP" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#8B5CF6"/></marker>
+    <marker id="ahG" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#10B981"/></marker>
+    <marker id="ahR" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#EF4444"/></marker>
+    <marker id="ahK" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#EC4899"/></marker>
+  </defs>`;
+}
+
+// component box: small icon + label
+function comp(x, y, emoji, label, sub = "", w = 80) {
+  const h = sub ? 58 : 50;
+  return `<g transform="translate(${x},${y})">
+    <rect x="${-w/2}" y="0" width="${w}" height="${h}" rx="7" fill="white" stroke="#CBD5E1" stroke-width="1.5" filter="url(#s)"/>
+    <text x="0" y="18" text-anchor="middle" font-size="18" dominant-baseline="central">${emoji}</text>
+    <text x="0" y="35" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0F172A">${label}</text>
+    ${sub ? `<text x="0" y="48" text-anchor="middle" font-size="7.5" fill="#64748B">${sub}</text>` : ""}
+  </g>`;
+}
+
+// diamond decision node
+function diamond(x, y, label1, label2 = "") {
+  return `<g transform="translate(${x},${y})">
+    <polygon points="0,-28 36,0 0,28 -36,0" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5" filter="url(#s)"/>
+    <text x="0" y="${label2 ? -5 : 3}" text-anchor="middle" font-size="8" font-weight="700" fill="#92400E">${label1}</text>
+    ${label2 ? `<text x="0" y="9" text-anchor="middle" font-size="8" font-weight="700" fill="#92400E">${label2}</text>` : ""}
+  </g>`;
+}
+
+// horizontal arrow from (x1) to (x2) at vertical y, with protocol label
+function arrow(x1, y, x2, proto, col = "ah", dashed = false) {
+  const { stroke, badge, text } = C[proto] || C.mem;
+  const mx = (x1 + x2) / 2;
+  const markerId = { http:"ahB", mcp:"ahO", sql:"ahP", https:"ahG", smtp:"ahR", mem:"ah", grpc:"ahK" }[proto] || "ah";
+  const dash = dashed ? `stroke-dasharray="6,3"` : "";
+  return `
+    <line x1="${x1}" y1="${y}" x2="${x2 - 8}" y2="${y}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${markerId})"/>
+    <rect x="${mx - 30}" y="${y - 9}" width="60" height="18" rx="9" fill="${badge}" stroke="${stroke}" stroke-width="1"/>
+    <text x="${mx}" y="${y + 1}" text-anchor="middle" font-size="8" font-weight="700" fill="${text}">${proto.toUpperCase()}</text>`;
+}
+
+// vertical arrow
+function varrow(x, y1, y2, proto, dashed = false) {
+  const { stroke, badge, text } = C[proto] || C.mem;
+  const my = (y1 + y2) / 2;
+  const markerId = { http:"ahB", mcp:"ahO", sql:"ahP", https:"ahG", smtp:"ahR", mem:"ah", grpc:"ahK" }[proto] || "ah";
+  const dash = dashed ? `stroke-dasharray="6,3"` : "";
+  return `
+    <line x1="${x}" y1="${y1}" x2="${x}" y2="${y2 - 6}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${markerId})"/>
+    <rect x="${x - 28}" y="${my - 9}" width="56" height="18" rx="9" fill="${badge}" stroke="${stroke}" stroke-width="1"/>
+    <text x="${x}" y="${my + 1}" text-anchor="middle" font-size="8" font-weight="700" fill="${text}">${proto.toUpperCase()}</text>`;
+}
+
+// data payload label (below arrow midpoint)
+function payload(x, y, lines) {
+  const lineH = 12;
+  const h = lines.length * lineH + 10;
+  const maxW = Math.max(...lines.map(l => l.length)) * 5.5 + 16;
+  return `<g>
+    <rect x="${x - maxW/2}" y="${y}" width="${maxW}" height="${h}" rx="4" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+    ${lines.map((l,i) => `<text x="${x}" y="${y + 12 + i*lineH}" text-anchor="middle" font-size="8" fill="#334155" font-family="monospace">${l}</text>`).join("")}
+  </g>`;
+}
+
+// step number badge
+function stepBadge(x, y, n) {
+  return `<circle cx="${x}" cy="${y}" r="14" fill="#FF6B35"/>
+    <text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="800" fill="white">${n}</text>`;
+}
+
+// page header
+function pageHeader(title, sub, w = 1090) {
+  return `<rect x="0" y="0" width="${w}" height="52" rx="8" fill="#0F172A"/>
+    <text x="16" y="20" font-size="10" fill="#94A3B8" font-weight="700" letter-spacing="2">${sub}</text>
+    <text x="16" y="40" font-size="18" font-weight="800" fill="white">${title}</text>`;
+}
+
+// page footer with legend items
+function pageFooter(pageNum, total, y = 740, w = 1090) {
+  const protocols = [
+    ["HTTP/POST", "#3B82F6"], ["JSON-RPC stdio (MCP)", "#F59E0B"],
+    ["SQL / pgvector", "#8B5CF6"], ["StreamableHTTP (MCP)", "#10B981"],
+    ["SMTP", "#EF4444"], ["In-process / JSON", "#64748B"],
+  ];
+  const dotR = 5, spacing = 145;
+  const startX = 12;
+  return `<rect x="0" y="${y}" width="${w}" height="40" rx="8" fill="#F1F5F9"/>
+    ${protocols.map((p, i) => `
+      <circle cx="${startX + dotR + i * spacing}" cy="${y + 20}" r="${dotR}" fill="${p[1]}"/>
+      <text x="${startX + dotR * 2 + 4 + i * spacing}" y="${y + 24}" font-size="8.5" fill="#475569">${p[0]}</text>
+    `).join("")}
+    <text x="${w - 12}" y="${y + 24}" text-anchor="end" font-size="9" fill="#94A3B8">Page ${pageNum} / ${total}</text>`;
+}
+
+// wrap SVG into a page div
+function page(svgContent, w = 1090, h = 770) {
+  return `<div class="page">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"
+         font-family="'Segoe UI',Arial,Helvetica,sans-serif">
+      ${shadow()}
+      <rect width="${w}" height="${h}" fill="#F8FAFC"/>
+      ${svgContent}
+    </svg>
+  </div>`;
+}
+
+// ─── PAGE BUILDERS ────────────────────────────────────────────────────────────
+
+function buildOverviewPage() {
+  // ── Column / hub geometry ───────────────────────────────────────────────
+  const CX_IN  = 65;     // input icons centre-x
+  const BUS_X  = 128;    // vertical gathering bus
+  const CX_BK  = 200;    // Express + LangGraph centre-x
+  const HUB_L  = 262;    // hub box left edge
+  const HUB_R  = 494;    // hub box right edge
+  const HUB_CX = (HUB_L + HUB_R) / 2;  // 378
+  const CX_MCP = 655;    // MCP server icon centre-x
+  const CX_SL  = 855;    // services left col
+  const CX_SR  = 985;    // services right col
+  const CX_SC  = 920;    // services single-col centre
+
+  // 5 data rows — inputs, hub routing blocks, MCP servers all share the same Y
+  const Y = [132, 252, 370, 488, 572];  // icon-top Y for each row
+  const rowCY = Y.map(y => y + 27);     // icon vertical centre
+
+  const HUB_TOP = 78;
+  const HUB_BOT = 638;
+  const IW = HUB_R - HUB_L;  // 232
+
+  let b = ``;  // body accumulator
+
+  // ── Header & column labels ───────────────────────────────────────────────
+  b += pageHeader("MCP Routing Architecture — How Each Request Is Dispatched",
+                  "OVERVIEW  ·  INPUT → EXPRESS → LANGGRAPH → MCP MANAGER → MCP SERVER → SERVICES");
+  b += `
+    <text x="${CX_IN}"  y="73" text-anchor="middle" font-size="7" font-weight="700" fill="#94A3B8" letter-spacing="1">INPUTS</text>
+    <text x="${CX_BK}"  y="73" text-anchor="middle" font-size="7" font-weight="700" fill="#94A3B8" letter-spacing="1">BACKEND</text>
+    <text x="${HUB_CX}" y="73" text-anchor="middle" font-size="7" font-weight="700" fill="#D97706" letter-spacing="1">MCP CLIENT MANAGER</text>
+    <text x="${CX_MCP}" y="73" text-anchor="middle" font-size="7" font-weight="700" fill="#94A3B8" letter-spacing="1">MCP SERVERS</text>
+    <text x="${(CX_SL+CX_SR)/2}" y="73" text-anchor="middle" font-size="7" font-weight="700" fill="#94A3B8" letter-spacing="1">AI / SERVICES</text>
+  `;
+
+  // ── MCP Client Manager hub box ──────────────────────────────────────────
+  b += `
+    <rect x="${HUB_L}" y="${HUB_TOP}" width="${IW}" height="${HUB_BOT - HUB_TOP}" rx="12"
+          fill="#FFFBEB" stroke="#F59E0B" stroke-width="2" filter="url(#s)"/>
+    <!-- amber header bar -->
+    <rect x="${HUB_L}" y="${HUB_TOP}" width="${IW}" height="34" rx="12" fill="#D97706"/>
+    <rect x="${HUB_L}" y="${HUB_TOP+22}" width="${IW}" height="12" fill="#D97706"/>
+    <text x="${HUB_CX}" y="${HUB_TOP+14}" text-anchor="middle" font-size="11" font-weight="800" fill="white">🔀  MCP Client Manager</text>
+    <text x="${HUB_CX}" y="${HUB_TOP+28}" text-anchor="middle" font-size="7.5" fill="#FEF3C7">mcp-client-manager.js</text>
+    <!-- TOOL_REGISTRY banner -->
+    <rect x="${HUB_L+8}" y="${HUB_TOP+38}" width="${IW-16}" height="17" rx="4"
+          fill="#FEF3C7" stroke="#F59E0B" stroke-width="1"/>
+    <text x="${HUB_CX}" y="${HUB_TOP+50}" text-anchor="middle" font-size="8" font-weight="700" fill="#92400E">TOOL_REGISTRY — routes by tool name</text>
+  `;
+
+  // Routing blocks inside hub — each vertically centred on its row
+  const routeBlocks = [
+    { tools:["analyze_resume","analyze_resume_only","send_invite"],    server:"→ resume server",    color:"#3B82F6", row:0 },
+    { tools:["candidate_lookup","candidate_benchmarks"],               server:"→ candidate server", color:"#10B981", row:1 },
+    { tools:["schedule_candidate","auto_assign_and_confirm"],          server:"→ scheduling server",color:"#8B5CF6", row:2 },
+    { tools:["list_hr_requests","approve_hr","reject_hr"],             server:"→ hr server",        color:"#EF4444", row:3 },
+    { tools:["create_event"],                                          server:"→ calendar (ext)",   color:"#EC4899", row:4 },
+  ];
+  routeBlocks.forEach(rb => {
+    const bH  = rb.tools.length * 13 + 20;
+    const bTop = rowCY[rb.row] - bH / 2;
+    b += `<rect x="${HUB_L+8}" y="${bTop}" width="${IW-16}" height="${bH}" rx="5"
+               fill="white" stroke="${rb.color}60" stroke-width="1.5"/>`;
+    rb.tools.forEach((t, i) =>
+      b += `<text x="${HUB_L+14}" y="${bTop+13+i*13}" font-size="7.5"
+                  fill="#475569" font-family="'Courier New',monospace">${t}</text>`);
+    b += `<text x="${HUB_L+14}" y="${bTop+bH-5}" font-size="8" font-weight="700" fill="${rb.color}">${rb.server}</text>`;
+  });
+
+  // Auto-respawn / stats badge at bottom of hub
+  const notY = rowCY[4] + 50;
+  b += `
+    <rect x="${HUB_L+8}" y="${notY}" width="${IW-16}" height="30" rx="5"
+          fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="${HUB_CX}" y="${notY+12}" text-anchor="middle" font-size="7" font-weight="700" fill="#1D4ED8">⟳ Auto-respawn on transport.onclose (3 s)</text>
+    <text x="${HUB_CX}" y="${notY+23}" text-anchor="middle" font-size="6.5" fill="#3B82F6">Per-server: totalCalls · failedCalls · lastCall</text>
+  `;
+
+  // ── Input components ────────────────────────────────────────────────────
+  const inputs = [
+    { emoji:"🌐", label:"Web Upload",    sub:"POST /upload" },
+    { emoji:"📧", label:"Email IMAP",    sub:"imapflow" },
+    { emoji:"🕵️",label:"Folder Watch",  sub:"chokidar" },
+    { emoji:"👩‍💼", label:"Admin Panel",  sub:"HR Dashboard" },
+    { emoji:"📋", label:"Interviewer",   sub:"Portal" },
+  ];
+  inputs.forEach((inp, i) => b += comp(CX_IN, Y[i], inp.emoji, inp.label, inp.sub, 78));
+
+  // ── Backend: Express + LangGraph ────────────────────────────────────────
+  b += comp(CX_BK, 188, "⚡", "Express.js", "API Router", 82);
+  b += comp(CX_BK, 348, "🔄", "LangGraph",  "Workflow",   82);
+
+  // ── MCP server icons (right of hub) ─────────────────────────────────────
+  const mcps = [
+    { color:"#3B82F6", emoji:"📄⚙️", label:"MCP Resume",     sub:"mcp-resume-server",     ext:false },
+    { color:"#10B981", emoji:"👤⚙️", label:"MCP Candidate",  sub:"mcp-candidate-server",  ext:false },
+    { color:"#8B5CF6", emoji:"📅⚙️", label:"MCP Scheduling", sub:"mcp-scheduling-server", ext:false },
+    { color:"#EF4444", emoji:"👥⚙️", label:"MCP HR",         sub:"mcp-hr-server",         ext:false },
+    { color:"#EC4899", emoji:"🌐⚙️", label:"Calendar MCP",   sub:"StreamableHTTP (ext)",  ext:true  },
+  ];
+  mcps.forEach((m, i) => b += comp(CX_MCP, Y[i], m.emoji, m.label, m.sub, 104));
+
+  // ── Services column ──────────────────────────────────────────────────────
+  // Row 0 — Ollama, Groq, PostgreSQL+pgvector
+  b += comp(CX_SL - 50, Y[0] - 10, "🧠", "Ollama",    "nomic-embed", 70);
+  b += comp(CX_SL + 55, Y[0] - 10, "⚡", "Groq LLM", "scorer",      70);
+  b += comp(CX_SC,      Y[0] + 62, "🗄️", "PostgreSQL","+pgvector",   76);
+  // Row 1 — PostgreSQL
+  b += comp(CX_SC, Y[1], "🗄️", "PostgreSQL", "candidates", 82);
+  // Row 2 — PostgreSQL + Nodemailer
+  b += comp(CX_SL, Y[2], "🗄️", "PostgreSQL", "slots",  72);
+  b += comp(CX_SR, Y[2], "📮", "Nodemailer", "SMTP",   70);
+  // Row 3 — PostgreSQL + Nodemailer
+  b += comp(CX_SL, Y[3], "🗄️", "PostgreSQL", "requests", 72);
+  b += comp(CX_SR, Y[3], "📮", "Nodemailer", "SMTP",     70);
+  // Row 4 — Calendar API
+  b += comp(CX_SC, Y[4], "📅", "Google/Yahoo", "Calendar API", 86);
+
+  // ── Arrows ───────────────────────────────────────────────────────────────
+  const ln = (x1,y1,x2,y2,color="#94A3B8",dash="",w=1.2) =>
+    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${w}"
+           ${dash} marker-end="url(#ah)"/>`;
+  const badge = (x, y, label, bg, border, tc) =>
+    `<rect x="${x-20}" y="${y-8}" width="40" height="16" rx="8" fill="${bg}" stroke="${border}" stroke-width="1"/>
+     <text x="${x}" y="${y+1}" text-anchor="middle" font-size="7" font-weight="700" fill="${tc}">${label}</text>`;
+
+  // 1. Vertical gathering bus
+  b += `<line x1="${BUS_X}" y1="${rowCY[0]}" x2="${BUS_X}" y2="${rowCY[4]}"
+              stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  inputs.forEach((_, i) =>
+    b += `<line x1="${CX_IN+39}" y1="${rowCY[i]}" x2="${BUS_X}" y2="${rowCY[i]}"
+                stroke="#CBD5E1" stroke-width="1.2"/>`);
+
+  // 2. Bus → Express (HTTP badge)
+  const expCY = 188 + 27;
+  b += `<line x1="${BUS_X}" y1="${expCY}" x2="${CX_BK-41}" y2="${expCY}"
+              stroke="#3B82F6" stroke-width="1.6" marker-end="url(#ahB)"/>`;
+  b += badge((BUS_X+CX_BK-41)/2, expCY, "HTTP", "#EFF6FF", "#3B82F6", "#1D4ED8");
+
+  // 3. Express → LangGraph (vertical)
+  b += `<line x1="${CX_BK}" y1="${188+50}" x2="${CX_BK}" y2="${348}"
+              stroke="#64748B" stroke-width="1.5" marker-end="url(#ah)"/>`;
+  b += badge(CX_BK, (188+50+348)/2, "state", "#F8FAFC", "#CBD5E1", "#64748B");
+
+  // 4. LangGraph → Hub (callMCPTool)
+  const lgAY = 348 + 27;
+  b += `<line x1="${CX_BK+41}" y1="${lgAY}" x2="${HUB_L}" y2="${lgAY}"
+              stroke="#F59E0B" stroke-width="2" marker-end="url(#ahO)"/>`;
+  b += `<rect x="${(CX_BK+41+HUB_L)/2-26}" y="${lgAY-9}" width="52" height="18" rx="9"
+              fill="#FFFBEB" stroke="#F59E0B" stroke-width="1"/>
+        <text x="${(CX_BK+41+HUB_L)/2}" y="${lgAY+1}" text-anchor="middle"
+              font-size="7.5" font-weight="700" fill="#B45309">callMCPTool()</text>`;
+
+  // 5. Hub right edge → each MCP server (one per row, coloured per server)
+  mcps.forEach((m, i) => {
+    const ay = rowCY[i];
+    const x1 = HUB_R, x2 = CX_MCP - 52;
+    const mx = (x1+x2)/2;
+    const proto = m.ext ? "HTTPS" : "stdio";
+    b += `<line x1="${x1}" y1="${ay}" x2="${x2}" y2="${ay}"
+                stroke="${m.color}" stroke-width="2" marker-end="url(#ahB)"/>`;
+    b += `<rect x="${mx-18}" y="${ay-9}" width="36" height="18" rx="9"
+                fill="${m.color}18" stroke="${m.color}" stroke-width="1"/>
+          <text x="${mx}" y="${ay+1}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${m.color}">${proto}</text>`;
+  });
+
+  // 6. MCP servers → services (thin dashed)
+  const ds = "stroke-dasharray='3,2'";
+  // Row 0 – Resume → Ollama, Groq, PG
+  b += ln(CX_MCP+52, rowCY[0]+10, CX_SL-50-35, Y[0]-10+25, "#64748B", ds);
+  b += ln(CX_MCP+52, rowCY[0]+25, CX_SL+55-35, Y[0]-10+25, "#64748B", ds);
+  b += ln(CX_MCP+52, rowCY[0]+38, CX_SC-38,    Y[0]+62+25, "#64748B", ds);
+  // Row 1 – Candidate → PG
+  b += ln(CX_MCP+52, rowCY[1], CX_SC-41, rowCY[1], "#64748B", ds);
+  // Row 2 – Scheduling → PG, SMTP
+  b += ln(CX_MCP+52, rowCY[2]-8, CX_SL-36, rowCY[2], "#64748B", ds);
+  b += ln(CX_MCP+52, rowCY[2]+8, CX_SR-35, rowCY[2], "#64748B", ds);
+  // Row 3 – HR → PG, SMTP
+  b += ln(CX_MCP+52, rowCY[3]-8, CX_SL-36, rowCY[3], "#64748B", ds);
+  b += ln(CX_MCP+52, rowCY[3]+8, CX_SR-35, rowCY[3], "#64748B", ds);
+  // Row 4 – Calendar → Google
+  b += ln(CX_MCP+52, rowCY[4], CX_SC-43, rowCY[4], "#64748B", ds);
+
+  b += pageFooter(2, 10);
+  return page(b);
+}
+
+// ─── STEP PAGE HELPER ─────────────────────────────────────────────────────────
+// Each step row: stepN, from-icon, arrow, to-icon, optional payload
+// steps = [{n, row, fromX, comps: [{emoji,label,sub}], arrows:[{proto}], payloads:[{lines}]}]
+
+function buildStepPage(pageTitle, pageSub, steps, pageNum, totalPages) {
+  const rowH = 140;
+  const baseY = 70;
+
+  let body = "";
+  steps.forEach((step, si) => {
+    const y = baseY + si * rowH;
+    const { n, comps, arrows: arrs, payloads = [], note = "" } = step;
+
+    // step badge
+    body += stepBadge(22, y + 40, n);
+
+    // separator line
+    if (si > 0) {
+      body += `<line x1="0" y1="${y - 5}" x2="1090" y2="${y - 5}" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="4,3"/>`;
+    }
+
+    // components + arrows
+    comps.forEach((c, ci) => {
+      const cx = 50 + ci * 170 + 50; // center x of component
+      const compY = y + 10;
+      body += comp(cx, compY, c.emoji, c.label, c.sub || "", c.w || 88);
+
+      if (arrs[ci]) {
+        const ax1 = cx + (c.w || 88) / 2;
+        const ax2 = 50 + (ci + 1) * 170 + 50 - (comps[ci + 1]?.w || 88) / 2;
+        body += arrow(ax1, compY + 27, ax2, arrs[ci].proto, "ahB", arrs[ci].dashed);
+
+        if (payloads[ci]) {
+          const mx = (ax1 + ax2) / 2;
+          body += payload(mx, compY + 45, payloads[ci]);
+        }
+      }
+    });
+
+    // decision branches (YES/NO labels)
+    if (step.branches) {
+      step.branches.forEach(b => {
+        body += `<text x="${b.x}" y="${b.y}" text-anchor="middle" font-size="9" font-weight="700" fill="${b.color}">${b.label}</text>`;
+      });
+    }
+
+    // side note
+    if (note) {
+      body += `<rect x="900" y="${y + 8}" width="175" height="80" rx="6" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1"/>
+        <text x="988" y="${y + 22}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#92400E">📌 Detail</text>
+        ${note.split("|").map((l, i) => `<text x="988" y="${y + 36 + i * 12}" text-anchor="middle" font-size="7.5" fill="#78350F">${l}</text>`).join("")}`;
+    }
+  });
+
+  return page(`
+    ${pageHeader(pageTitle, pageSub)}
+    ${body}
+    ${pageFooter(pageNum, totalPages)}
+  `);
+}
+
+// ─── DEFINE ALL STEP PAGES ────────────────────────────────────────────────────
+
+function buildPage2() {
+  return buildStepPage(
+    "Resume Upload & Request Handling",
+    "STEPS 1 – 4  ·  ENTRY POINTS → EXPRESS → LANGGRAPH INIT",
+    [
+      {
+        n: 1,
+        comps: [
+          { emoji: "🌐", label: "Web Browser", sub: "React / Pug UI", w: 88 },
+          { emoji: "⚡", label: "Express.js", sub: "/upload route", w: 88 },
+          { emoji: "📦", label: "multer", sub: "memStorage", w: 80 },
+          { emoji: "💾", label: "File Buffer", sub: "Uint8Array", w: 80 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "mem" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["POST /upload", "Content-Type:", "multipart/form-data", "file: <binary>", "interviewId: UUID"],
+          ["req.file"],
+          ["buffer: Buffer", "mimetype, size"],
+        ],
+        note: "multer uses memoryStorage|so file never touches|disk — stays in RAM|as Buffer object",
+      },
+      {
+        n: 2,
+        comps: [
+          { emoji: "⚡", label: "Express.js", sub: "upload.js route", w: 88 },
+          { emoji: "🆔", label: "UUID v4", sub: "threadId gen", w: 80 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates", w: 80 },
+          { emoji: "📬", label: "LangGraph", sub: "graph.invoke()", w: 88 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "sql" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["threadId = uuid()"],
+          ["INSERT candidates", "thread_id, interview_id", "email, status='Screening'"],
+          ["state: {threadId,", "interviewId, email,", "resumeBuffer}"],
+        ],
+        note: "LangGraph compiles|graph once on server|start; invoke() creates|a new thread run",
+      },
+      {
+        n: 3,
+        comps: [
+          { emoji: "🔄", label: "LangGraph", sub: "Workflow Engine", w: 90 },
+          { emoji: "💾", label: "PostgresSaver", sub: "Checkpoint", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "langgraph_*", w: 80 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "sql" },
+        ],
+        payloads: [
+          ["checkpoint.put()", "state snapshot"],
+          ["INSERT INTO", "langgraph_checkpoints"],
+        ],
+        note: "Each state transition|is persisted — allows|resume if server|restarts mid-flow",
+      },
+      {
+        n: 4,
+        comps: [
+          { emoji: "🔄", label: "LangGraph", sub: "Graph Router", w: 90 },
+          { emoji: "📧", label: "Email Ingest", sub: "IMAP / imapflow", w: 90 },
+          { emoji: "🕵️", label: "chokidar", sub: "Folder Watcher", w: 88 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["IMAP IDLE poll", "fetch attachments"],
+          ["fs.watch() trigger", "file → buffer"],
+        ],
+        note: "Alternative entry:|IMAP ingest and|folder watcher also|funnel into graph.invoke()",
+      },
+    ],
+    2, 10,
+  );
+}
+
+function buildPage3() {
+  return buildStepPage(
+    "Duplicate Check Node & PostgreSQL Interaction",
+    "STEPS 5 – 7  ·  LANGGRAPH NODE: check_domain_and_duplicate",
+    [
+      {
+        n: 5,
+        comps: [
+          { emoji: "🔄", label: "LangGraph", sub: "routes to node", w: 88 },
+          { emoji: "🔷", label: "check_domain", sub: "_and_duplicate", w: 90 },
+          { emoji: "#️⃣", label: "crypto.SHA-256", sub: "hash(buffer)", w: 90 },
+          { emoji: "💠", label: "resumeHash", sub: "hex string", w: 80 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "mem" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["state.resumeBuffer"],
+          ["Buffer.from()", "createHash('sha256')", ".update(buf)", ".digest('hex')"],
+          ["hash: 'a3f9...'"],
+        ],
+        note: "SHA-256 detects|exact duplicate files|even if candidate|changes their email",
+      },
+      {
+        n: 6,
+        comps: [
+          { emoji: "🔷", label: "check_domain", sub: "node", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates table", w: 88 },
+          { emoji: "❓", label: "Duplicate?", sub: "hash OR email", w: 80 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["SELECT thread_id", "FROM candidates", "WHERE interview_id=$1", "AND (resume_hash=$2", "OR email=$3)"],
+          ["rows.length > 0?", "YES → {status:'Rejected'}", "NO → continue"],
+        ],
+        note: "Scoped per interview|so same candidate|can apply to multiple|job openings",
+      },
+      {
+        n: 7,
+        comps: [
+          { emoji: "🔷", label: "check_domain", sub: "node (new candidate)", w: 90 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates", w: 80 },
+          { emoji: "✅", label: "State Update", sub: "{status:'Screening'}", w: 90 },
+          { emoji: "🔄", label: "LangGraph", sub: "→ analyze_resume", w: 88 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "mem" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["INSERT INTO candidates", "(thread_id, interview_id,", "email, resume_hash,", "status, assignment_method)"],
+          ["return {resumeHash,", "status:'Screening'}"],
+          ["graph routes to", "analyze_resume node"],
+        ],
+      },
+    ],
+    3, 10,
+  );
+}
+
+function buildPage4() {
+  return buildStepPage(
+    "MCP Resume Server Call & Text Extraction",
+    "STEPS 8 – 11  ·  analyze_resume NODE → MCP JSON-RPC → TEXT PIPELINE",
+    [
+      {
+        n: 8,
+        comps: [
+          { emoji: "🧩", label: "analyze_resume", sub: "LG Node", w: 88 },
+          { emoji: "🔀", label: "MCP Client", sub: "Manager", w: 88 },
+          { emoji: "📄⚙️", label: "mcp-resume", sub: "-server.js", w: 88 },
+        ],
+        arrows: [
+          { proto: "mcp" },
+          { proto: "mcp" },
+        ],
+        payloads: [
+          ["isMCPToolAvailable", "('analyze_resume_only')?", "YES → encode base64"],
+          ["JSON-RPC 2.0 stdio", "{method:'tools/call',", "params:{name:", "'analyze_resume_only',", "arguments:{threadId,", "interviewId,resumeBase64}}}"],
+        ],
+        note: "MCPClientManager.TOOL|_REGISTRY routes the|call to 'resume' server|child process via stdio",
+      },
+      {
+        n: 9,
+        comps: [
+          { emoji: "📄⚙️", label: "mcp-resume", sub: "-server.js", w: 88 },
+          { emoji: "🔍", label: "Magic Bytes", sub: "file detection", w: 88 },
+          { emoji: "📝", label: "Text Extractor", sub: "mammoth/pdf-parse", w: 90 },
+          { emoji: "📃", label: "resumeText", sub: "plain string", w: 80 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "mem" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["buf[0]===0x50? DOCX", "buf[0]===0xD0? DOC", "else PDF"],
+          ["DOCX→mammoth", "DOC→word-extractor", "PDF→pdf-parse", "     +pdfjs-dist"],
+          ["text ≥ 50 chars?", "else score=0,Rejected"],
+        ],
+        note: "Multi-strategy PDF:|pdf-parse → pdfjs-dist|→ raw regex fallback|for scanned PDFs",
+      },
+      {
+        n: 10,
+        comps: [
+          { emoji: "📃", label: "resumeText", sub: "candidate text", w: 88 },
+          { emoji: "🧠", label: "Ollama", sub: "nomic-embed-text", w: 90 },
+          { emoji: "📐", label: "Vector [768]", sub: "embedding dims", w: 88 },
+          { emoji: "🗄️", label: "pgvector", sub: "jd_chunks table", w: 80 },
+        ],
+        arrows: [
+          { proto: "https" },
+          { proto: "mem" },
+          { proto: "sql" },
+        ],
+        payloads: [
+          ["POST :11434/api", "/embeddings", "{model:'nomic-embed", "-text',prompt:text}"],
+          ["embedding: [0.12,", "-0.34, ... x768]"],
+          ["SELECT content", "FROM jd_chunks", "WHERE interview_id=$1", "ORDER BY embedding", "  <=> $2::vector", "LIMIT 5"],
+        ],
+        note: "Cosine distance <=>|is pgvector operator.|Top-5 JD chunks form|the RAG context",
+      },
+      {
+        n: 11,
+        comps: [
+          { emoji: "📋", label: "RAG Context", sub: "top-5 JD chunks", w: 88 },
+          { emoji: "⚡", label: "Groq LLM", sub: "llama-3 / mixtral", w: 88 },
+          { emoji: "📊", label: "Score JSON", sub: "0-100 + analysis", w: 88 },
+        ],
+        arrows: [
+          { proto: "https" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["POST api.groq.com", "/v1/chat/completions", "{model, messages:[", "{role:'user',", "content:JD+resume}]}"],
+          ["{score:82,", "matching:['React','TS'],", "missing:['AWS'],", "summary:'Strong...'}"],
+        ],
+        note: "callWithRetry()|wraps Groq call —|retries up to 3x on|rate-limit errors",
+      },
+    ],
+    4, 10,
+  );
+}
+
+function buildPage5() {
+  return buildStepPage(
+    "Score Persistence & LangGraph Threshold Gate",
+    "STEPS 12 – 15  ·  DB UPDATE → CONDITIONAL EDGE → INVITE / REJECT",
+    [
+      {
+        n: 12,
+        comps: [
+          { emoji: "⚡", label: "Groq Response", sub: "parsed JSON", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates", w: 80 },
+          { emoji: "📤", label: "stdio reply", sub: "to MCP client", w: 88 },
+          { emoji: "🔀", label: "MCP Client", sub: "Manager", w: 88 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "mcp" },
+          { proto: "mcp" },
+        ],
+        payloads: [
+          ["UPDATE candidates SET", "resume_score=$1,", "summary=$2,", "status='Screening'", "WHERE thread_id=$3"],
+          ["JSON-RPC result:", "{ok:true,resumeScore:82}", "via stdout pipe"],
+          ["parseToolResult()", "→ {resumeScore:82}"],
+        ],
+        note: "If MCP call throws,|nodes.js catch block|runs same logic|in-process (fallback)",
+      },
+      {
+        n: 13,
+        comps: [
+          { emoji: "🧩", label: "analyze_resume", sub: "node return", w: 88 },
+          { emoji: "🔄", label: "LangGraph", sub: "state merge", w: 88 },
+          { emoji: "💾", label: "PostgresSaver", sub: "checkpoint", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "lg_checkpoints", w: 88 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "sql" },
+          { proto: "sql" },
+        ],
+        payloads: [
+          ["{resumeScore:82,", "resumeBuffer:null}"],
+          ["state snapshot saved"],
+          ["upsert checkpoint", "for thread_id"],
+        ],
+        note: "resumeBuffer set to|null after scoring to|free memory — graph|no longer needs it",
+      },
+      {
+        n: 14,
+        comps: [
+          { emoji: "🔄", label: "LangGraph", sub: "conditional edge", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "interviews", w: 80 },
+          { emoji: "◆", label: "Threshold", sub: "score ≥ threshold?", w: 88 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["SELECT score_threshold", "FROM interviews", "WHERE id=$1"],
+          ["state.resumeScore", ">= threshold?"],
+        ],
+        note: "Threshold is per-|interview config.|HR sets it in the|Admin dashboard",
+      },
+      {
+        n: 15,
+        comps: [
+          { emoji: "◆", label: "Threshold Gate", sub: "decision", w: 88 },
+          { emoji: "✉️", label: "send_invite", sub: "node (YES path)", w: 90 },
+          { emoji: "❌", label: "reject_candidate", sub: "node (NO path)", w: 90 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["score ≥ N → invite", "route:send_invite"],
+          ["score < N → reject", "route:reject_candidate"],
+        ],
+        note: "reject_candidate only|does SQL UPDATE —|no email sent here.|Admin bulk-sends later",
+      },
+    ],
+    5, 10,
+  );
+}
+
+function buildPage6() {
+  return buildStepPage(
+    "Invitation Flow — Credentials & Email Delivery",
+    "STEPS 16 – 19  ·  send_invite NODE → MCP → BCRYPT → SMTP",
+    [
+      {
+        n: 16,
+        comps: [
+          { emoji: "✉️", label: "send_invite", sub: "LG Node", w: 88 },
+          { emoji: "🔀", label: "MCP Client", sub: "Manager", w: 88 },
+          { emoji: "📄⚙️", label: "mcp-resume", sub: "-server.js", w: 88 },
+          { emoji: "🔑", label: "Credential", sub: "Generator", w: 80 },
+        ],
+        arrows: [
+          { proto: "mcp" },
+          { proto: "mcp" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["tool: 'send_invite'", "{threadId,candidateEmail}"],
+          ["JSON-RPC stdio", "child process call"],
+          ["crypto.randomBytes(4)", ".toString('hex')", "→ loginToken (8 chars)"],
+        ],
+        note: "send_invite also|has in-process fallback|— same credential|gen + email logic",
+      },
+      {
+        n: 17,
+        comps: [
+          { emoji: "🔑", label: "Credential", sub: "Generator", w: 88 },
+          { emoji: "🔐", label: "bcrypt", sub: "hash(pw, 10)", w: 80 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates", w: 80 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "sql" },
+        ],
+        payloads: [
+          ["plainPassword =", "randomBytes(6)", ".toString('base64url')", "passwordHash =", "bcrypt.hash(pw,10)"],
+          ["UPDATE candidates SET", "login_token=$1,", "password_hash=$2,", "must_change_password=TRUE", "WHERE thread_id=$3"],
+        ],
+        note: "bcrypt cost=10:|~100ms hash time.|Candidate must change|password on first login",
+      },
+      {
+        n: 18,
+        comps: [
+          { emoji: "📄⚙️", label: "mcp-resume", sub: "-server.js", w: 88 },
+          { emoji: "📮", label: "Nodemailer", sub: "SMTP transport", w: 88 },
+          { emoji: "📧", label: "SMTP Server", sub: "Gmail / custom", w: 88 },
+          { emoji: "📬", label: "Candidate", sub: "Email Inbox", w: 80 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "smtp" },
+          { proto: "smtp" },
+        ],
+        payloads: [
+          ["sendInvitationEmail()", "{to, subject,", "html: loginLink", "+ tempPassword}"],
+          ["STARTTLS / TLS", "AUTH LOGIN", "EHLO handshake"],
+          ["Subject: Interview Invite", "Body: link + credentials"],
+        ],
+        note: "Email has one-time|login link with token.|Candidate logs in,|changes password",
+      },
+      {
+        n: 19,
+        comps: [
+          { emoji: "📄⚙️", label: "mcp-resume", sub: "server reply", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates", w: 80 },
+          { emoji: "🔄", label: "LangGraph", sub: "graph END", w: 88 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "mcp" },
+        ],
+        payloads: [
+          ["UPDATE candidates SET", "status='AwaitingVideo'"],
+          ["stdio response:", "{ok:true,", "status:'AwaitingVideo'}"],
+        ],
+        note: "Graph reaches END|node. Thread is done.|Candidate portal now|shows video upload UI",
+      },
+    ],
+    6, 10,
+  );
+}
+
+function buildPage7() {
+  return buildStepPage(
+    "Video Submission & AI Analysis",
+    "STEPS 20 – 23  ·  CANDIDATE PORTAL → VIDEO UPLOAD → GEMINI / LOCAL ANALYZER",
+    [
+      {
+        n: 20,
+        comps: [
+          { emoji: "👤", label: "Candidate", sub: "Browser", w: 80 },
+          { emoji: "⚡", label: "Express.js", sub: "/candidate/video", w: 90 },
+          { emoji: "📦", label: "multer", sub: "diskStorage", w: 80 },
+          { emoji: "📁", label: "uploads/", sub: "video file", w: 80 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "mem" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["POST /candidate/video", "Content-Type:", "multipart/form-data", "video: <binary>"],
+          ["req.file"],
+          ["video saved to disk", "uploads/<threadId>.mp4"],
+        ],
+        note: "Video uses diskStorage|(not memStorage) —|files can be hundreds|of MB",
+      },
+      {
+        n: 21,
+        comps: [
+          { emoji: "📁", label: "Video File", sub: "mp4 / webm", w: 80 },
+          { emoji: "🎬", label: "video-analysis", sub: ".js service", w: 90 },
+          { emoji: "✨", label: "Gemini AI", sub: "gemini-2.0-flash", w: 90 },
+          { emoji: "📊", label: "Analysis", sub: "JSON result", w: 80 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "https" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["fs.readFileSync(path)", "→ Buffer → base64"],
+          ["POST /v1/models/gemini", "-2.0-flash:generateContent", "{contents:[{parts:[", "{inlineData:", "{mimeType,data}}]}]}"],
+          ["{english_score,", "confidence_score,", "skills:[], salary,", "video_summary,", "transcript}"],
+        ],
+        note: "Gemini receives raw|video as base64.|Extracts language,|confidence & skills",
+      },
+      {
+        n: 22,
+        comps: [
+          { emoji: "🎬", label: "video-analysis", sub: "fallback path", w: 90 },
+          { emoji: "🏠", label: "local-video", sub: "-analyze.js", w: 90 },
+          { emoji: "⚡", label: "Groq LLM", sub: "transcript scorer", w: 90 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "https" },
+        ],
+        payloads: [
+          ["if Gemini fails or", "not configured →", "local analyzer"],
+          ["POST api.groq.com", "score from transcript", "text only (no vision)"],
+        ],
+        note: "Local analyzer is a|graceful fallback for|when Gemini API is|unavailable / cost-limited",
+      },
+      {
+        n: 23,
+        comps: [
+          { emoji: "📊", label: "Video Scores", sub: "parsed JSON", w: 88 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "candidates", w: 80 },
+          { emoji: "📈", label: "Final Result", sub: "composite score", w: 88 },
+          { emoji: "👩‍💼", label: "Admin Panel", sub: "shows result", w: 88 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "sql" },
+          { proto: "http" },
+        ],
+        payloads: [
+          ["UPDATE candidates SET", "english_score, confidence,", "skills, salary_expectation,", "video_summary, video_path"],
+          ["UPDATE candidates SET", "final_result, status='Done'"],
+          ["GET /admin/candidates", "→ renders scores"],
+        ],
+      },
+    ],
+    7, 10,
+  );
+}
+
+function buildPage8() {
+  return buildStepPage(
+    "Scheduling Flow — MCP Scheduling Server",
+    "STEPS 24 – 27  ·  ADMIN TRIGGER → MCP SCHEDULING → SLOTS → CALENDAR MCP",
+    [
+      {
+        n: 24,
+        comps: [
+          { emoji: "👩‍💼", label: "Admin Panel", sub: "HR dashboard", w: 88 },
+          { emoji: "⚡", label: "Express.js", sub: "POST /schedule", w: 90 },
+          { emoji: "📅⚙️", label: "mcp-scheduling", sub: "-server.js", w: 90 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "mcp" },
+        ],
+        payloads: [
+          ["POST /candidates/:id", "/schedule", "{candidateId,interviewId}"],
+          ["JSON-RPC stdio", "tool:'schedule_candidate'", "{candidateId,interviewId}"],
+        ],
+        note: "MCPClientManager routes|'schedule_candidate'|→ scheduling server|child process",
+      },
+      {
+        n: 25,
+        comps: [
+          { emoji: "📅⚙️", label: "mcp-scheduling", sub: "server", w: 90 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "interviewer_slots", w: 90 },
+          { emoji: "⚡", label: "Groq LLM", sub: "slot priority", w: 88 },
+          { emoji: "📋", label: "Best Slots", sub: "ordered list", w: 80 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "https" },
+          { proto: "mem" },
+        ],
+        payloads: [
+          ["SELECT s.slot_start,", "s.slot_end, s.interviewer_id", "FROM interviewer_slots s", "JOIN interviewers i ...", "WHERE s.status='available'"],
+          ["Groq ranks slots by|time-of-day, load,|interviewer seniority"],
+          ["slots[0..N] sorted"],
+        ],
+        note: "Groq slot ranking is|optional — falls back|to chronological order|if LLM unavailable",
+      },
+      {
+        n: 26,
+        comps: [
+          { emoji: "📅⚙️", label: "mcp-scheduling", sub: "server", w: 90 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "scheduled_interviews", w: 100 },
+          { emoji: "📮", label: "Nodemailer", sub: "SMTP", w: 80 },
+          { emoji: "📬", label: "Candidate", sub: "slot choices email", w: 90 },
+        ],
+        arrows: [
+          { proto: "sql" },
+          { proto: "mem" },
+          { proto: "smtp" },
+        ],
+        payloads: [
+          ["INSERT scheduled_interviews", "(candidate_id, interviewer_id,", "slot_start, slot_end,", "status='pending_candidate',", "candidate_token, interviewer_token)"],
+          ["sendCandidateSlotEmail()", "{slots, confirmLinks}"],
+          ["Email with slot options", "candidate clicks to confirm"],
+        ],
+      },
+      {
+        n: 27,
+        comps: [
+          { emoji: "👤", label: "Candidate", sub: "confirms slot", w: 80 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "status='confirmed'", w: 90 },
+          { emoji: "🌐⚙️", label: "Calendar MCP", sub: "StreamableHTTP", w: 95 },
+          { emoji: "📅", label: "Google/Yahoo", sub: "Calendar Event", w: 90 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "https" },
+          { proto: "https" },
+        ],
+        payloads: [
+          ["GET /confirm/:token", "UPDATE status", "='confirmed'"],
+          ["POST https://cal-mcp/mcp", "Authorization: Bearer <key>", "tool:'create_event'", "{summary,start,end,", "attendees:[cand,itvr]}"],
+          ["Google Calendar API", "or Yahoo Calendar API", "event created"],
+        ],
+        note: "Calendar MCP is|external / pluggable.|Uses StreamableHTTP,|not stdio transport",
+      },
+    ],
+    8, 10,
+  );
+}
+
+function buildPage9() {
+  return buildStepPage(
+    "HR Management — MCP HR Server & Assignment Flow",
+    "STEPS 28 – 31  ·  MCP HR SERVER → APPROVE / REJECT → NOTIFICATIONS",
+    [
+      {
+        n: 28,
+        comps: [
+          { emoji: "👩‍💼", label: "Admin Panel", sub: "HR Requests", w: 88 },
+          { emoji: "⚡", label: "Express.js", sub: "GET /hr/requests", w: 90 },
+          { emoji: "👥⚙️", label: "mcp-hr", sub: "-server.js", w: 84 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "assignment_requests", w: 100 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "mcp" },
+          { proto: "sql" },
+        ],
+        payloads: [
+          ["GET /admin/hr-requests"],
+          ["JSON-RPC stdio", "tool:'list_hr_assignment", "_requests'", "{status:'pending',limit:50}"],
+          ["SELECT ar.*, c.email,", "i.name, iv.title", "FROM assignment_requests ar", "JOIN candidates c ..."],
+        ],
+        note: "MCPClientManager.TOOL|_REGISTRY maps|'list_hr_assignment|_requests' → 'hr' server",
+      },
+      {
+        n: 29,
+        comps: [
+          { emoji: "👩‍💼", label: "HR Admin", sub: "approves request", w: 90 },
+          { emoji: "👥⚙️", label: "mcp-hr", sub: "-server.js", w: 84 },
+          { emoji: "🗄️", label: "PostgreSQL", sub: "UPDATE status", w: 88 },
+          { emoji: "📅⚙️", label: "mcp-scheduling", sub: "(auto-assign)", w: 95 },
+        ],
+        arrows: [
+          { proto: "http" },
+          { proto: "sql" },
+          { proto: "mcp" },
+        ],
+        payloads: [
+          ["POST /hr/approve", "{requestId, interviewerId}", "tool:'approve_hr", "_assignment_request'"],
+          ["UPDATE assignment_requests", "SET status='approved',", "interviewer_id=$1"],
+          ["autoAssignAnd", "ConfirmCandidate()", "→ JSON-RPC stdio"],
+        ],
+        note: "Approval triggers|auto-confirm which|finds best slot and|books interview",
+      },
+      {
+        n: 30,
+        comps: [
+          { emoji: "👥⚙️", label: "mcp-hr", sub: "-server.js", w: 84 },
+          { emoji: "📮", label: "Nodemailer", sub: "SMTP", w: 80 },
+          { emoji: "📬", label: "Interviewer", sub: "notification email", w: 90 },
+          { emoji: "📬", label: "Candidate", sub: "confirmation email", w: 90 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "smtp" },
+          { proto: "smtp" },
+        ],
+        payloads: [
+          ["sendHrApproval", "RequestNotification()", "{interviewerEmail,", "candidateEmail, slot}"],
+          ["Interviewer email:|slot + meet link"],
+          ["Candidate email:|confirmed slot details"],
+        ],
+        note: "Both parties get|confirmation with|Google Meet link|embedded in email",
+      },
+      {
+        n: 31,
+        comps: [
+          { emoji: "🔀", label: "MCP Client", sub: "Manager — stats", w: 90 },
+          { emoji: "⚡", label: "Express.js", sub: "GET /debug/mcp", w: 90 },
+          { emoji: "👩‍💼", label: "Admin Panel", sub: "MCP health view", w: 90 },
+        ],
+        arrows: [
+          { proto: "mem" },
+          { proto: "http" },
+        ],
+        payloads: [
+          ["getMCPDebugStatus()", "{servers:{resume:{", "available,totalCalls,", "failedCalls,lastCall},", "candidate:{...},...}}"],
+          ["JSON response", "per-server health"],
+        ],
+        note: "Auto-respawn fires|3s after drop.|getMCPDebugStatus()|shows live stats",
+      },
+    ],
+    9, 10,
+  );
+}
+
+// ─── ASSEMBLE HTML ────────────────────────────────────────────────────────────
+
+function buildHTML() {
+  return `<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: white; width: 1587px; height: 1123px; overflow: hidden; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#fff; }
+  .page {
+    width: 1122px;
+    height: 794px;
+    overflow: hidden;
+    page-break-after: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .page:last-child { page-break-after: auto; }
+  @page { size: A4 landscape; margin: 0; }
 </style>
 </head>
-<body>${svg}</body>
+<body>
+${buildCoverPage()}
+${buildOverviewPage()}
+${buildPage2()}
+${buildPage3()}
+${buildPage4()}
+${buildPage5()}
+${buildPage6()}
+${buildPage7()}
+${buildPage8()}
+${buildPage9()}
+</body>
 </html>`;
-
-async function main() {
-  const outPath = path.join(process.cwd(), "InterviewAssist-Architecture.pdf");
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1587, height: 1123 });
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
-    await page.pdf({
-      path: outPath,
-      format: "A3",
-      landscape: true,
-      printBackground: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
-    });
-    console.log(`PDF saved: ${outPath}`);
-  } finally {
-    await browser.close();
-  }
 }
 
-main().catch((e) => { console.error(e.message); process.exit(1); });
+function buildCoverPage() {
+  const W = 1090, H = 770;
+  return page(`
+    <rect width="${W}" height="${H}" fill="#0F172A"/>
+
+    <!-- gradient accent bar -->
+    <defs>
+      <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#3B82F6"/>
+        <stop offset="33%" stop-color="#8B5CF6"/>
+        <stop offset="66%" stop-color="#F59E0B"/>
+        <stop offset="100%" stop-color="#10B981"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="${W}" height="8" fill="url(#grad)"/>
+
+    <!-- Title block -->
+    <text x="${W/2}" y="200" text-anchor="middle" font-size="14" font-weight="700" fill="#3B82F6" letter-spacing="4">TECHNICAL ARCHITECTURE</text>
+    <text x="${W/2}" y="270" text-anchor="middle" font-size="52" font-weight="900" fill="white">TrenHire</text>
+    <text x="${W/2}" y="330" text-anchor="middle" font-size="28" font-weight="300" fill="#94A3B8">Interview Assistant</text>
+
+    <!-- subtitle -->
+    <text x="${W/2}" y="410" text-anchor="middle" font-size="14" fill="#64748B">Step-by-step component interaction · MCP microservice architecture · LangGraph.js workflow</text>
+
+    <!-- tech pill badges -->
+    ${[
+      ["LangGraph.js", 240, "#6366F1"],
+      ["MCP Protocol", 360, "#F59E0B"],
+      ["PostgreSQL + pgvector", 510, "#336791"],
+      ["Groq LLM", 660, "#10B981"],
+      ["Gemini AI", 760, "#EA4335"],
+      ["Node.js ESM", 870, "#68A063"],
+    ].map(([label, x, color]) => `
+      <rect x="${x - label.length * 4 - 8}" y="460" width="${label.length * 8 + 16}" height="28" rx="14" fill="${color}22" stroke="${color}" stroke-width="1"/>
+      <text x="${x}" y="479" text-anchor="middle" font-size="11" font-weight="600" fill="${color}">${label}</text>
+    `).join("")}
+
+    <!-- page count note -->
+    <text x="${W/2}" y="580" text-anchor="middle" font-size="12" fill="#475569">10 pages  ·  31 technical steps  ·  4 MCP microservers  ·  6 protocol types</text>
+
+    <rect x="0" y="${H - 8}" width="${W}" height="8" fill="url(#grad)"/>
+  `);
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+
+(async () => {
+  console.log("Launching Chromium...");
+  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+  const p = await browser.newPage();
+  await p.setViewport({ width: 1122, height: 794 });
+  await p.setContent(buildHTML(), { waitUntil: "networkidle0" });
+
+  console.log("Rendering PDF...");
+  await p.pdf({
+    path: OUT,
+    format: "A4",
+    landscape: true,
+    printBackground: true,
+    margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+  });
+
+  await browser.close();
+  console.log(`Done → ${OUT}`);
+})();

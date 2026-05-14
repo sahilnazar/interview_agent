@@ -9,7 +9,7 @@ import { query } from "../config/db.js";
 import { toBuffer, parseJSON, callWithRetry, getGroqModel } from "./helpers.js";
 import { sendInvitationEmail } from "../services/email.js";
 import { retrieveRelevantChunks } from "../services/embeddings.js";
-import { isMCPAvailable, analyzeResumeOnlyViaMCP, sendInviteViaMCP } from "../services/mcp.js";
+import { dispatchWithPrompt } from "../services/agent-dispatcher.js";
 
 // ---------------------------------------------------------------------------
 // Node: check duplicates + insert candidate (scoped to interview)
@@ -47,20 +47,21 @@ export async function checkDomainAndDuplicate(state) {
 export async function analyzeResume(state) {
   const { threadId, resumeBuffer, interviewId } = state;
 
-  if (isMCPAvailable()) {
-    try {
-      const resumeBase64 = toBuffer(resumeBuffer).toString("base64");
-      const mcpResult = await analyzeResumeOnlyViaMCP({
-        threadId,
-        interviewId,
-        resumeBase64,
-      });
-      if (typeof mcpResult?.resumeScore === "number") {
-        return { resumeScore: mcpResult.resumeScore, resumeBuffer: null };
-      }
-    } catch (err) {
-      console.warn(`[${threadId}] MCP analyze_resume_only failed, falling back local: ${err.message}`);
+  try {
+    const resumeBase64 = toBuffer(resumeBuffer).toString("base64");
+    const dispatched = await dispatchWithPrompt(
+      `Score the resume for candidate ${candidateEmail} against the job description ` +
+      `for interview ${interviewId}. Extract matching skills, missing skills, and ` +
+      `return a fit score from 0 to 100.`,
+      { threadId, interviewId, resumeBase64 },
+      { allowTools: ["analyze_resume_only"] }
+    );
+    if (typeof dispatched.result?.resumeScore === "number") {
+      console.log(`[${threadId}] AgentDispatcher selected "${dispatched.toolName}" — score: ${dispatched.result.resumeScore}`);
+      return { resumeScore: dispatched.result.resumeScore, resumeBuffer: null };
     }
+  } catch (err) {
+    console.warn(`[${threadId}] AgentDispatcher failed, running local analysis: ${err.message}`);
   }
 
   try {
@@ -165,13 +166,20 @@ export async function analyzeResume(state) {
 export async function sendInvite(state) {
   const { threadId, candidateEmail } = state;
 
-  if (isMCPAvailable()) {
-    try {
-      const mcpResult = await sendInviteViaMCP({ threadId, candidateEmail });
-      if (mcpResult?.status) return { status: mcpResult.status };
-    } catch (err) {
-      console.warn(`[${threadId}] MCP send_invite failed, falling back local: ${err.message}`);
+  try {
+    const dispatched = await dispatchWithPrompt(
+      `Candidate ${candidateEmail} passed the resume score threshold. ` +
+      `Generate login credentials and send them an invitation email with a ` +
+      `video upload link. Set their status to AwaitingVideo.`,
+      { threadId, candidateEmail },
+      { allowTools: ["send_invite"] }
+    );
+    if (dispatched.result?.status) {
+      console.log(`[${threadId}] AgentDispatcher selected "${dispatched.toolName}" — status: ${dispatched.result.status}`);
+      return { status: dispatched.result.status };
     }
+  } catch (err) {
+    console.warn(`[${threadId}] AgentDispatcher failed, running local invite: ${err.message}`);
   }
 
   // Generate login credentials
