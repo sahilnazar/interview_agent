@@ -1,11 +1,13 @@
 /**
- * Prompt-driven MCP tool dispatcher.
+ * Prompt-driven MCP tool dispatcher — LangGraph ToolNode edition.
  *
- * Instead of callers hardcoding which MCP tool to invoke, they describe
- * what they need in plain English. This module sends that prompt to Groq
- * with the available tool definitions and executes whatever the LLM selects.
+ * Callers describe what they need in plain English. This module:
+ *   1. Filters to only the MCP tools that are currently online.
+ *   2. Binds those tools to a ChatGroq model.
+ *   3. Runs a minimal LangGraph agent: llm → ToolNode → END.
+ *   4. Returns the tool result in the same shape as before.
  *
- * Usage:
+ * Usage (unchanged from previous version):
  *   const { toolName, result } = await dispatchWithPrompt(
  *     "Score the resume for candidate X against interview Y",
  *     { threadId, interviewId, resumeBase64 },
@@ -15,44 +17,24 @@
  *   else        { ... run local fallback ... }
  */
 
-import OpenAI from "openai";
-import { TOOL_DEFINITIONS } from "./tool-definitions.js";
-import { callMCPTool, isMCPToolAvailable } from "./mcp-client-manager.js";
+import { ChatGroq } from "@langchain/groq";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { createTools } from "./lc-tools.js";
 import { callWithRetry } from "../graph/helpers.js";
 
-const groq = new OpenAI({
-  baseURL: "https://api.groq.com/openai/v1",
-  apiKey: process.env.GROQ_API_KEY,
-});
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Return only the tool definitions whose MCP server is currently online,
- * optionally filtered to an explicit allowList of tool names.
- */
-function getAvailableTools(allowList = null) {
-  return TOOL_DEFINITIONS.filter((def) => {
-    const name = def.function.name;
-    if (allowList && !allowList.includes(name)) return false;
-    return isMCPToolAvailable(name);
-  });
-}
-
-/**
- * Merge LLM-chosen args with caller-supplied context.
- * Context values override LLM-supplied values so sensitive fields
- * (threadId, interviewId) are always correct even if the LLM hallucinates.
- */
-function mergeArgs(llmArgs, context) {
-  return { ...llmArgs, ...context };
-}
+const SYSTEM_PROMPT =
+  "You are an intelligent hiring automation assistant. " +
+  "Based on the task description, call the single most appropriate tool. " +
+  "Do not explain your reasoning — just call the tool with the correct arguments. " +
+  "Never invent values for required fields; use only what is provided in the task.";
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * Send a natural-language prompt to Groq with available tool definitions.
- * Groq returns tool_call(s) → we execute each via callMCPTool().
+ * Send a natural-language prompt through a LangGraph ToolNode agent.
+ * The LLM selects and executes the appropriate MCP tool automatically.
  *
  * @param {string}   prompt               What needs to be done (plain English)
  * @param {object}   context              Data the chosen tool will need.
@@ -60,101 +42,83 @@ function mergeArgs(llmArgs, context) {
  *                                        chosen arguments and take priority.
  * @param {object}   [options]
  * @param {string[]} [options.allowTools] Whitelist of tool names to offer the LLM.
- *                                        Omit to offer all available tools.
- * @param {string}   [options.toolChoice] "auto" | "required"  (default: "auto")
  *
- * @returns {Promise<DispatchResult>}
- *   Single tool: { toolName: string, result: object }
- *   Multi-tool:  { toolName: "multi", results: Array<{ toolName, result }> }
- *   No tool:     { toolName: null, result: null, reason: string }
+ * @returns {Promise<{ toolName: string|null, result: object|null, reason?: string }>}
  *
- * @typedef {{ toolName: string|null, result: object|null, reason?: string }} DispatchResult
+ * @throws  When the selected tool throws (e.g. MCP server error) — caller should
+ *          catch and run a local fallback.
  */
 export async function dispatchWithPrompt(prompt, context = {}, options = {}) {
-  const { allowTools = null, toolChoice = "auto" } = options;
+  const { allowTools = null } = options;
 
-  // 1. Build the filtered tool list — only tools whose server is online
-  const tools = getAvailableTools(allowTools);
+  // 1. Build the filtered tool list — only tools whose server is currently online
+  const tools = createTools(context, allowTools);
 
   if (!tools.length) {
     console.warn("[AgentDispatcher] No MCP tools available — caller should use local fallback");
     return { toolName: null, result: null, reason: "no_tools_available" };
   }
 
-  // 2. Build messages
-  const messages = [
-    {
-      role: "system",
-      content:
-        "You are an intelligent hiring automation assistant. " +
-        "Based on the task description, call the single most appropriate tool. " +
-        "Do not explain your reasoning — just call the tool with the correct arguments. " +
-        "Never invent values for required fields; use only what is provided in the task.",
-    },
-    {
-      role: "user",
-      content: prompt,
-    },
-  ];
+  // 2. Bind tools to ChatGroq
+  const model = new ChatGroq({ model: "llama-3.3-70b-versatile", temperature: 0 }).bindTools(tools);
 
-  // 3. Call Groq with tool definitions
-  let response;
+  // 3. Build a minimal single-turn dispatch graph:
+  //    agent node → has tool_calls? → tools node → END
+  //                                ↘ no tool_calls → END
+  const toolNode = new ToolNode(tools);
+
+  const graph = new StateGraph(MessagesAnnotation)
+    .addNode("agent", async (state) => ({
+      messages: [await callWithRetry(() => model.invoke(state.messages))],
+    }))
+    .addNode("tools", toolNode)
+    .addEdge(START, "agent")
+    .addConditionalEdges("agent", (state) => {
+      const last = state.messages.at(-1);
+      return last?.tool_calls?.length ? "tools" : END;
+    })
+    .addEdge("tools", END)
+    .compile();
+
+  // 4. Invoke the graph
+  let finalMessages;
   try {
-    response = await callWithRetry(() =>
-      groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages,
-        tools,
-        tool_choice: toolChoice,
-        temperature: 0,
-      })
-    );
+    const result = await graph.invoke({
+      messages: [new SystemMessage(SYSTEM_PROMPT), new HumanMessage(prompt)],
+    });
+    finalMessages = result.messages;
   } catch (err) {
-    console.error("[AgentDispatcher] Groq tool-selection call failed:", err.message);
-    return { toolName: null, result: null, reason: `groq_error: ${err.message}` };
+    console.error("[AgentDispatcher] Graph execution failed:", err.message);
+    return { toolName: null, result: null, reason: `graph_error: ${err.message}` };
   }
 
-  const message = response.choices[0]?.message;
+  // 5. Extract tool name from the AIMessage and result from the ToolMessage
+  const aiMsg = finalMessages.findLast((m) => m?.tool_calls?.length > 0);
+  const toolMsg = finalMessages.findLast((m) => m._getType?.() === "tool");
 
-  // 4. LLM decided no tool was needed
-  if (!message?.tool_calls?.length) {
-    console.warn("[AgentDispatcher] LLM returned no tool_call for prompt:", prompt.slice(0, 100));
+  if (!aiMsg || !toolMsg) {
+    console.warn("[AgentDispatcher] LLM returned no tool call for prompt:", prompt.slice(0, 100));
     return { toolName: null, result: null, reason: "no_tool_selected" };
   }
 
-  // 5. Execute each chosen tool
-  const results = [];
+  const toolName = aiMsg.tool_calls[0].name;
 
-  for (const toolCall of message.tool_calls) {
-    const name = toolCall.function.name;
-
-    let llmArgs;
-    try {
-      llmArgs = JSON.parse(toolCall.function.arguments || "{}");
-    } catch {
-      llmArgs = {};
-    }
-
-    // Merge: caller-supplied context takes priority over LLM-supplied args
-    const args = mergeArgs(llmArgs, context);
-
-    console.log(
-      `[AgentDispatcher] LLM selected tool: "${name}" | args: ${JSON.stringify(
-        { ...args, resumeBase64: args.resumeBase64 ? "<base64>" : undefined },
-      )}`
-    );
-
-    try {
-      const result = await callMCPTool(name, args);
-      results.push({ toolName: name, result });
-    } catch (err) {
-      console.error(`[AgentDispatcher] Tool execution failed for "${name}":`, err.message);
-      // Propagate so caller can run local fallback
-      throw err;
-    }
+  // Re-throw tool errors so callers can run their local fallback
+  if (toolMsg.status === "error") {
+    throw new Error(`MCP tool "${toolName}" failed: ${toolMsg.content}`);
   }
 
-  // 6. Return single or multi result
-  if (results.length === 1) return results[0];
-  return { toolName: "multi", results };
+  // 6. Parse the JSON string the tool returned
+  const rawContent =
+    typeof toolMsg.content === "string" ? toolMsg.content : JSON.stringify(toolMsg.content);
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch {
+    parsed = { ok: true, raw: rawContent };
+  }
+
+  console.log(`[AgentDispatcher] "${toolName}" executed via LangGraph ToolNode`);
+  return { toolName, result: parsed };
 }
